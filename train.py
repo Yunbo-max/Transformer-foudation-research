@@ -2,7 +2,7 @@
 # @Author: Yunbo
 # @Date:   2025-01-05 14:48:31
 # @Last Modified by:   Yunbo
-# @Last Modified time: 2025-04-08 12:25:57
+# @Last Modified time: 2025-04-08 14:01:10
 import torch
 from torch import nn,optim
 import torch.utils
@@ -15,9 +15,13 @@ if __name__=="__main__":
     tokenizer = AutoTokenizer.from_pretrained("./tokenizer",use_fast=False)
     tokenizer.add_special_tokens({"bos_token":"<s>"})
 
-    src_vocab_size,dst_vocab_size = tokenizer.vocab_size+len(tokenizer.special_tokens_map),tokenizer.vocab_size+len(tokenizer.special_tokens_map)
+    # src_vocab_size,dst_vocab_size = tokenizer.vocab_size+len(tokenizer.special_tokens_map)+95,tokenizer.vocab_size+len(tokenizer.special_tokens_map)+95
+  
+    src_vocab_size = len(tokenizer)
+    dst_vocab_size = len(tokenizer)
+
     pad_idx=tokenizer.pad_token_id
-    print(pad_idx)
+    
     d_model=512
     num_layes=6
     heads=8
