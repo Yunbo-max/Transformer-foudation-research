@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+# @Author: Yunbo
+# @Date:   2025-01-05 14:48:31
+# @Last Modified by:   Yunbo
+# @Last Modified time: 2025-04-08 12:15:35
 from torch.utils.data import Dataset,DataLoader
 from transformers import AutoTokenizer
 import torch
@@ -48,7 +53,7 @@ if __name__=="__main__":
     print(tokenizer.bos_token,tokenizer.bos_token_id)
     dataset= EnglishChineseDataset(tokenizer,"./data/train.txt",40)
     print(dataset[0])
-    # str_ = "你好，我是一只小小鸟！"
-    # out = tokenizer(str_)
-    # print(out)
-    # count_max_seq_len("./data/cmn.txt")
+    str_ = "你好，我是一只小小鸟！"
+    out = tokenizer(str_)
+    print(out)
+    count_max_seq_len("./data/cmn.txt")

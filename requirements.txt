@@ -1,0 +1,16 @@
+# Core Requirements
+torch>=2.0.0
+transformers>=4.30.0
+tqdm>=4.65.0
+sentencepiece>=0.1.99
+protobuf>=3.20.0
+
+# Optional but Recommended
+numpy>=1.23.0
+pandas>=1.5.0
+matplotlib>=3.7.0
+tensorboard>=2.12.0
+
+# Platform-Specific Dependencies
+accelerate>=0.20.0  # For better device management
+tokenizers>=0.13.0  # Fast tokenizer support

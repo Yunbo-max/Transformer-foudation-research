@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+# @Author: Yunbo
+# @Date:   2025-01-05 14:48:31
+# @Last Modified by:   Yunbo
+# @Last Modified time: 2025-04-08 12:25:57
 import torch
 from torch import nn,optim
 import torch.utils
@@ -7,7 +12,7 @@ import tqdm,os
 
 if __name__=="__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    tokenizer = AutoTokenizer.from_pretrained("./tokenizer")
+    tokenizer = AutoTokenizer.from_pretrained("./tokenizer",use_fast=False)
     tokenizer.add_special_tokens({"bos_token":"<s>"})
 
     src_vocab_size,dst_vocab_size = tokenizer.vocab_size+len(tokenizer.special_tokens_map),tokenizer.vocab_size+len(tokenizer.special_tokens_map)
