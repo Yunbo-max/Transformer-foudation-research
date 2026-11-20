@@ -47,7 +47,7 @@ def main():
     if a.device=="cuda":
         import torch
         assert torch.cuda.is_available(),"cuda requested but unavailable; use --device cpu"
-    manifest=prepare_token_data(upstream.parent,a.steps*32*64,vocab=8000,real_dir=a.real_data_dir)
+    manifest=prepare_token_data(upstream,a.steps*32*64,vocab=8000,real_dir=a.real_data_dir)
     out="feasibility_pilot.jsonl"
     variants=[
         ("adam_eps",["--clus",0,"--heps","1e-5"]),
