@@ -26,7 +26,7 @@ def full_geometry_step(S,k,v,C,mu=8.,lam=1.,tau=1.):
     u=torch.linalg.solve(H,k)
     return S+torch.outer(u,v-k@S)/(tau+k@u)
 
-def setup(seed,dim=8):
+def setup(seed,dim=8,aligned=False):
     g=torch.Generator().manual_seed(seed)
     Q,_=torch.linalg.qr(torch.randn(dim,dim,generator=g,dtype=torch.float64))
     e=Q.T
@@ -39,13 +39,14 @@ def setup(seed,dim=8):
     mA=0.30+0.45*torch.rand((),generator=g).item()
     mB=0.30+0.45*torch.rand((),generator=g).item()
     Cq=p_hi*torch.outer(e[0],e[0])+(1-p_hi)*torch.outer(e[1],e[1])
+    if aligned: Cq=Ck.clone()
     kA=unit(e[0]+mA*e[2])
     kB=unit(e[1]+mB*e[3])
     vA=e[4];vB=e[5]
     return S,e,Cq,Ck,(kA,kB),(vA,vB)
 
-def run_new_writes(seed,method,mu=8.,beta=.35,nsteps=32):
-    S,e,Cq,Ck,keys,values=setup(seed)
+def run_new_writes(seed,method,mu=8.,beta=.35,nsteps=32,aligned=False):
+    S,e,Cq,Ck,keys,values=setup(seed,aligned=aligned)
     S0=S.clone()
     # identical interleaved interfering writes for all arms
     for t in range(nsteps):
@@ -87,13 +88,13 @@ def repeat_answer_oracle(seed,steps=32):
         recorded.append({"arm":typ,"state_drift":old_loss,"other_fact_mse":important})
     return recorded
 
-def contrast(seed):
+def contrast(seed,aligned=False):
     strengths=[0.,.25,.5,1.,2.,4.,8.,16.,32.,64.]
     result={}
     for arm in ("gdn2","key_gate","query_gate","full_key","full_query"):
         rows=[]
         for mu in strengths:
-            rows.append(dict(mu=mu,**run_new_writes(seed,arm,mu=mu)))
+            rows.append(dict(mu=mu,**run_new_writes(seed,arm,mu=mu,aligned=aligned)))
         result[arm]=rows
     # Matched-plasticity retention: for a given new fact error threshold, choose
     # each method's best old error among feasible strength settings.
@@ -204,7 +205,13 @@ def main():
     for seed in a.seeds:
         if time.monotonic()-start>a.budget_seconds-30:break
         grid,matched=contrast(seed)
+        aligned_grid,aligned_matched=contrast(seed,aligned=True)
+        null_gap=max(abs(a["old_readout_mse"]-b["old_readout_mse"])
+            for a,b in zip(aligned_grid["key_gate"],aligned_grid["query_gate"]))
+        if null_gap>1e-8:
+            raise AssertionError("query/key aligned negative control must tie")
         data["seeds"].append(dict(seed=seed,grid=grid,matched=matched,
+                        aligned_negative_control_gap=null_gap,
                         redundancy=repeat_answer_oracle(seed)))
         (out/"results.json").write_text(json.dumps(data,indent=2))
     if a.official_root:
