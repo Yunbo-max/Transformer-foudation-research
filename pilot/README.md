@@ -42,7 +42,7 @@ in BOTH seeds and rare target mass is >=5%. Consider the gradient extension
 only if it further beats row k-means by >=0.005 nats in BOTH seeds.
 Incomplete runs are INCONCLUSIVE.
 
-All outputs: .pilot_workspace/reports/{report.json,decision.json,*.log}.
+All outputs: .pilot_workspace_rare/reports/{report.json,decision.json,*.log}.
 There is a hard 10500-s subprocess time budget (under 3 hours), excluding
 dependency setup and cloning. Do not publish synthetic results as LM gains.
 At least 3 real-data seeds and a larger model are needed for publication.
