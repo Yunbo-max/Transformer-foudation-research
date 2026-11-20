@@ -107,38 +107,86 @@ def contrast(seed):
     return result,matched
 
 def official_parity(repo_path):
-    """Only checks unchanged NVIDIA kernel in a supported local CUDA environment."""
+    """Unmodified NVIDIA kernel: one-step parity plus 32 controlled writes.
+
+    No learned model or nontrivial decay is used in this diagnostic. beta_guard
+    is set False here to isolate the published recurrence and match the exact
+    reference; normal model training should keep its default safeguard.
+    """
     import sys
     root=Path(repo_path).expanduser().resolve()
     if not (root/"lit_gpt/gdn2_ops/chunk_gdn2.py").exists():
-        raise FileNotFoundError("expected official NVlabs/GatedDeltaNet-2 git checkout")
+        raise FileNotFoundError("expected official NVlabs/GatedDeltaNet-2 checkout")
     if not torch.cuda.is_available():
         raise RuntimeError("official kernel requires CUDA")
     sys.path.insert(0,str(root))
     from lit_gpt.gdn2_ops.chunk_gdn2 import chunk_gdn2
-    dtype=torch.bfloat16;dev="cuda";K=32;V=32;T=64
+    dtype=torch.bfloat16
+    dev="cuda"
+    K=32;V=32;T=64
     torch.manual_seed(101)
-    # Zero gate on the padded 63 tokens; only first token edits the memory.
     k=F.normalize(torch.randn(K,device=dev,dtype=dtype),dim=0)
     v=torch.randn(V,device=dev,dtype=dtype)
-    q=torch.zeros(1,T,1,K,device=dev,dtype=dtype);q[:,0,0]=k
+    q=torch.zeros(1,T,1,K,device=dev,dtype=dtype)
+    q[:,0,0]=k
     ks=torch.zeros_like(q);ks[:,0,0]=k
-    vs=torch.zeros(1,T,1,V,device=dev,dtype=dtype);vs[:,0,0]=v
-    b=torch.zeros_like(ks); b[:,0,0]=.35
-    w=torch.zeros_like(vs); w[:,0,0]=.35
+    vs=torch.zeros(1,T,1,V,device=dev,dtype=dtype)
+    vs[:,0,0]=v
+    b=torch.zeros_like(ks);b[:,0,0]=.35
+    w=torch.zeros_like(vs);w[:,0,0]=.35
     g=torch.zeros_like(ks)
     init=torch.zeros(1,1,K,V,device=dev,dtype=torch.float32)
     torch.cuda.synchronize();t0=time.perf_counter()
     with torch.no_grad():
-        out,fin=chunk_gdn2(q,ks,vs,g,b,w,initial_state=init,
+        _,fin=chunk_gdn2(q,ks,vs,g,b,w,initial_state=init,
             output_final_state=True,use_qk_l2norm_in_kernel=True,
             beta_guard=False)
     torch.cuda.synchronize()
     expected=.35*torch.outer(k.float(),v.float())
     err=(fin[0,0].float()-expected).abs().max().item()
-    if not math.isfinite(err) or err>0.04:raise AssertionError(f"official parity error {err}")
+    if not math.isfinite(err) or err>0.04:
+        raise AssertionError(f"official one-step parity error {err}")
+    controlled=[]
+    for seed in (17,23,42):
+        S,e,Cq,Ck,keys,values=setup(seed)
+        for arm in ("gdn2","query_gate","key_gate"):
+            q=torch.zeros(1,T,1,K,device=dev,dtype=dtype)
+            kk=torch.zeros_like(q)
+            vv=torch.zeros(1,T,1,V,device=dev,dtype=dtype)
+            bb=torch.zeros_like(q)
+            ww=torch.zeros_like(vv)
+            for t in range(32):
+                j=t%2
+                k8=keys[j];v8=values[j]
+                key=torch.cat([k8,torch.zeros(K-8,dtype=S.dtype)])
+                value=torch.cat([v8,torch.zeros(V-8,dtype=S.dtype)])
+                C=Cq if arm=="query_gate" else Ck
+                factor=1. if arm=="gdn2" else 1/(1+8*(k8@C@k8))
+                kk[0,t,0]=key.to(device=dev,dtype=dtype)
+                q[0,t,0]=kk[0,t,0]
+                vv[0,t,0]=value.to(device=dev,dtype=dtype)
+                bb[0,t,0]=.35*float(factor)
+                ww[0,t,0]=.35*float(factor)
+            initial=torch.zeros(1,1,K,V,device=dev,dtype=torch.float32)
+            initial[0,0,:8,:8]=S.float().to(dev)
+            with torch.no_grad():
+                _,h=chunk_gdn2(q,kk,vv,torch.zeros_like(q),bb,ww,
+                    initial_state=initial,output_final_state=True,
+                    use_qk_l2norm_in_kernel=True,beta_guard=False)
+            reference=run_new_writes(seed,arm,mu=8.,beta=.35,nsteps=32)
+            Sm=h[0,0,:8,:8].double().cpu()
+            p_hi=float(e[0]@Cq@e[0])
+            old=p_hi*((e[0]@Sm)-(e[0]@S)).square().sum().item()
+            old+=(1-p_hi)*((e[1]@Sm)-(e[1]@S)).square().sum().item()
+            new=sum(((keys[j]@Sm)-values[j]).square().sum().item() for j in range(2))/2
+            diff=max(abs(reference["old_readout_mse"]-old),abs(reference["new_fact_mse"]-new))
+            controlled.append(dict(seed=seed,arm=arm,old_readout_mse=old,
+                new_fact_mse=new,reference_max_metric_error=diff))
+            if diff>0.15:
+                raise AssertionError(f"official/reference mismatch {seed} {arm}: {diff}")
     return {"status":"PASS","max_abs_state_error":err,
-            "call_seconds":time.perf_counter()-t0,"official_repo":str(root)}
+            "controlled_trials":controlled,
+            "elapsed_seconds":time.perf_counter()-t0,"official_repo":str(root)}
 
 def main():
     p=argparse.ArgumentParser()
