@@ -42,5 +42,5 @@ No success -> redesign or stop.
 Source code is cloned/pinned into a local ignored work directory; do not
 mistake the method's short synthetic run for natural-language reasoning.
 No full LM pretraining was performed. Work directory outputs:
-.pilot_workspace/reports/{report.json,decision.json,case stdout/stderr}.
+.pilot_workspace_pointer/reports/{report.json,decision.json,case stdout/stderr}.
 Runner hard budget 10500 s, excluding cloning and package setup.
