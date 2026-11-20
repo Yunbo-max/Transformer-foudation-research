@@ -14,7 +14,8 @@ interfering write? These must be isolated before adding a complex Branch/Fork.
 
 The default math screen uses the exact one-head scalar-gate, zero-decay special
 case of the GDN-2 equation. No Triton is needed, so the diagnostic works on CPU
-in minutes. It includes 3 fixed seeds and identical write streams per arm.
+in minutes. It includes 3 fixed seeds with genuinely varying conflict difficulty and identical write streams per arm.
+An aligned-Query/Key negative control must yield equal scalar-gate results.
 It evaluates:
 - plain rank-one GDN-2 update, scalar key-aware gate, scalar query-aware gate;
 - query-aware Full Geometry direction, and key-aware Full Geometry control;
