@@ -10,6 +10,10 @@ doubled no-backtrack, and gated binary lifting. The hypothesis being screened
 is whether this mechanism can extend beyond reverse-ordered synthetic chains.
 
 ## Run
+
+Preferred strict three-hour GNU/Linux command (includes checkout and data prep):
+  bash pilot/run_3h.sh --device cuda  # omit --device for Branch reference
+
   pip install torch numpy
   python3 pilot/run.py --device cpu --budget-seconds 10500
   python3 pilot/run.py --device cuda --budget-seconds 10500
