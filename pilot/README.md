@@ -9,6 +9,10 @@ clustering the current output rows. Claim (2) is a new *hypothesis*, not a resul
 
 ## Execute
 
+Preferred strict three-hour GNU/Linux command (includes checkout and data prep):
+  bash pilot/run_3h.sh --device cuda  # omit --device for Branch reference
+
+
 Requires Python >=3.10, torch, numpy and git. For a GPU:
   pip install torch numpy
   python3 pilot/run.py --device cuda --budget-seconds 10500
