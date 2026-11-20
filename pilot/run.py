@@ -34,9 +34,13 @@ def setup(seed,dim=8):
     S+=torch.outer(e[0],e[0])+torch.outer(e[1],e[1])
     # Equal past write frequency, unequal future read usage.
     Ck=.5*torch.outer(e[0],e[0])+.5*torch.outer(e[1],e[1])
-    Cq=.9*torch.outer(e[0],e[0])+.1*torch.outer(e[1],e[1])
-    kA=unit(e[0]+.50*e[2])
-    kB=unit(e[1]+.50*e[3])
+    # Seeds vary actual task difficulty, not only rotate coordinates.
+    p_hi=0.80+0.15*torch.rand((),generator=g).item()
+    mA=0.30+0.45*torch.rand((),generator=g).item()
+    mB=0.30+0.45*torch.rand((),generator=g).item()
+    Cq=p_hi*torch.outer(e[0],e[0])+(1-p_hi)*torch.outer(e[1],e[1])
+    kA=unit(e[0]+mA*e[2])
+    kB=unit(e[1]+mB*e[3])
     vA=e[4];vB=e[5]
     return S,e,Cq,Ck,(kA,kB),(vA,vB)
 
@@ -58,7 +62,8 @@ def run_new_writes(seed,method,mu=8.,beta=.35,nsteps=32):
             wg=torch.full_like(v,beta*r)
             S=gdn2_step(S,k,v,gate,wg)
     # Do NOT select a method by old-recall only; report learning of NEW facts.
-    old=.9*((e[0]@S)-(e[0]@S0)).square().sum().item()+.1*((e[1]@S)-(e[1]@S0)).square().sum().item()
+    p_hi=float(e[0]@Cq@e[0])
+    old=p_hi*((e[0]@S)-(e[0]@S0)).square().sum().item()+(1-p_hi)*((e[1]@S)-(e[1]@S0)).square().sum().item()
     new=sum(((keys[j]@S)-values[j]).square().sum().item() for j in range(2))/2
     return {"old_readout_mse":old,"new_fact_mse":new}
 
