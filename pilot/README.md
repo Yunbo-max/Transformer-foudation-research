@@ -13,6 +13,10 @@ experimental *confidence hold* that waits for persistent near-noise cosine
 evidence. This is a screen of a hypothesis, NOT a proven new optimizer.
 
 ## Run
+
+Preferred strict three-hour GNU/Linux command (includes checkout and data prep):
+  bash pilot/run_3h.sh --device cuda  # omit --device for Branch reference
+
 Python >=3.10, torch, numpy, git. On local CPU:
   pip install torch numpy
   python3 pilot/run.py --device cpu --budget-seconds 10500
