@@ -9,6 +9,10 @@ Does suppressing an answer write differ from changing the direction of an
 interfering write? These must be isolated before adding a complex Branch/Fork.
 
 ## Run
+
+Preferred strict three-hour GNU/Linux command (includes checkout and data prep):
+  bash pilot/run_3h.sh  # optional --official-root PATH for NVIDIA kernel check
+
   pip install torch
   python3 pilot/run.py --budget-seconds 10500
 
