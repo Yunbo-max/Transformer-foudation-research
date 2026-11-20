@@ -194,7 +194,7 @@ def main():
     p.add_argument("--budget-seconds",type=int,default=10500)
     p.add_argument("--official-root",default=None)
     p.add_argument("--seeds",nargs="+",type=int,default=[17,23,42])
-    p.add_argument("--output",default=".pilot_workspace/branch_reports")
+    p.add_argument("--output",default=".pilot_workspace_branch/branch_reports")
     a=p.parse_args()
     assert 0<a.budget_seconds<=10600
     root=Path(__file__).resolve().parent.parent
