@@ -46,7 +46,7 @@ improves the fixed hold by >=0.005 nats and is within 0.006 of best-of-three
 fixed on both seeds in the hard configuration. A sweep is not a perfect oracle.
 All incomplete cells = INCONCLUSIVE.
 
-Output: .pilot_workspace/reports/report.json and decision.json plus per-case logs.
+Output: .pilot_workspace_muon/reports/report.json and decision.json plus per-case logs.
 Hard child wall-clock cap 10,500 s (<3h) excluding setup/clone.
 No experiments have been run in this authoring session.
 Full publication needs 100M+ real language model, broad LR/schedule controls,
