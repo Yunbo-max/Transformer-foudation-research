@@ -62,6 +62,6 @@ No quality improvement is claimed until those runs actually complete.
   pinned optional kernel SHA de8476de0fecae08fc16f0bf3154900244c61c73.
 - Prior Predicted-Skip: https://github.com/vukrosic/llm-research-paper-drafts
   (coauthor's publicly released MIT draft; method is not claimed as ours).
-- Results: .pilot_workspace/branch_reports/results.json. No results prefilled.
+- Results: .pilot_workspace_branch/branch_reports/results.json. No results prefilled.
 - The script has a 10,500-s experiment cap (<3h); dependency install/setup is
   separate and should be bounded by an outer job scheduler as appropriate.
