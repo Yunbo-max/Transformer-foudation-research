@@ -1,141 +1,147 @@
-# Predicted-Skip GDN-2 — Joint Erase + Write Suppression
+# Predicted-Skip on channel-wise GDN-2
 
-Status (2026-11-21): PyTorch CPU tests and tiny synthetic training passed locally;
-the official NVIDIA CUDA kernel path and paper-scale experiments have NOT
-been GPU-verified. This project is INDEPENDENT of SG-Delta.
+**Current revision: source-reviewed repair; tests, CUDA parity and training on
+these exact bytes are pending local execution.**
 
-Credits: prior Predicted-Skip mechanism by coauthor Vuk Rosic:
-https://github.com/vukrosic/llm-research-paper-drafts/tree/main/03-linear-attention-skip-lookups
-His MIT reference is not copied here. The proposed NEW variant suppresses both
-erase and write of NVIDIA GDN-2; do not call the write-only control our invention.
+Start with [LOCAL_AGENT_RUNBOOK.md](LOCAL_AGENT_RUNBOOK.md).
+See [MATH.md](MATH.md) for the equations, guard semantics and counterexamples,
+[SOURCES.md](SOURCES.md) for pinned author implementations, and
+[WEB_HANDOFF.md](WEB_HANDOFF.md) for changed settings and pending checks.
 
-## Mathematical definition
+## Attribution and scope
 
-GDN-2 uses S in R^{KxV}, with independent key-side erase b and
-value-side write w, and channel-wise log decay g:
+Vuk Rosic's original Predicted-Skip code already includes **both write-only
+suppression and joint erase/write suppression**, through --lpsE 1. Both are
+credited to that work. The earlier claim that joint suppression itself was
+new to this branch is withdrawn.
+
+This project adapts those controls to the exact channel-wise GDN-2 recurrence
+and evaluates numerical correctness, retention/plasticity and cost. It is
+independent of SG-Delta. An implementation extension is not yet a new
+paper-level method or a claim of superior model quality.
+
+## Recurrence and predictor
+
+For key-major S with shape K x V:
 
     Sbar_t = diag(exp(g_t)) S_{t-1}
-    S_t = Sbar_t - k_t [(b_t*k_t)^T Sbar_t] + k_t (w_t*v_t)^T
+    S_raw,t = Sbar_t - k_t [(b_t * k_t)^T Sbar_t] + k_t (w_t * v_t)^T
+    r_t = S_chunk_start^T q_{t-1}
+    rho_t = exp(-gamma_head * max(0, cosine(r_t, v_t)))
 
-At the start of each chunk, take ONLY the already computed recurrent state S_c.
-For t in that chunk use the previous query (q_{t-1}) and current value v_t:
+write: scale only w by rho.
+joint: scale both b and w by rho.
 
-    r_t = S_c^T q_{t-1}
-    rho_t = exp(-gamma * max(0, cosine(r_t,v_t)))
+For the RAW recurrence:
 
-Main proposal:
+    S_joint,t = Sbar_t + rho_t (S_raw,t - Sbar_t)
 
-    b_new,t = rho_t*b_t
-    w_new,t = rho_t*w_t
-    g_new,t = g_t  (decay unchanged)
-    S_t = Sbar_t + rho_t * (S_t^{original active edit}-Sbar_t)
+Decay is still active. A high value cosine is not a certificate that the
+current key/value association is already present. New-key/same-value binding,
+weak same-direction reads and continual decay are explicit counterexamples.
+The boundary-state prediction omits within-chunk updates; the first chunk's
+gate is one. No labels or phase masks enter the predictor.
 
-This identity is exact for the recurrence WITHOUT extra internal gate projection.
-The official CUDA implementation has an optional beta_guard safety projection;
-we initially DISABLE it in the matched parity study, then MUST report an
-additional default-beta_guard-on validation for actual NVIDIA behavior.
-Setting rho=0 removes active edit but DOES NOT turn off decay.
+## Numeric and architecture repair
 
-## Quick run from repository root
+- Per-head learnable gamma, initialized at 0.25, follows the author code's
+  weaker initial suppression. --gamma records alternative initializations.
+- Causal Q/K/V depthwise short convolution size 4 is applied to all arms.
+  --conv-size 0 restores the former no-convolution ablation.
+- Q/K normalization is defined consistently and official inputs are not
+  accidentally normalized twice.
+- Reference state accumulates in FP32. The standalone raw algebra helper
+  preserves explicit FP64 inputs for mathematical unit checks.
+- --precision float32 or bfloat16 controls the SAME path in validation,
+  training and evaluation.
+- Default --guard native implements the NVIDIA beta-contrast projection in
+  both backends, including its straight-through backward convention.
+- --guard raw selects the original unguarded recurrence. Its exact Joint
+  interpolation identity is tested separately.
+- The default native guard runs AFTER skip scaling, matching NVIDIA behavior.
+  Because guard(rho*b) generally differs from rho*guard(b), raw interpolation
+  is not claimed for independently guarded arms.
+- --differentiate-gate-memory removes the default stop-gradient at the
+  predictor's boundary-state input. The main recurrent gradient is retained
+  in either case.
+- --diagnostics records actual-trajectory active-edit quantities during
+  reference evaluation only. It does not alter the predictor.
 
-Requires Python 3.10+, torch, and git only for optional official checkout.
+These settings change the training configuration and gamma parameter shape.
+Old scalar-gamma checkpoints are not silently reinterpreted as new checkpoints.
+
+## Local reference commands
 
     python3 -m unittest discover -s pilot -p 'test_*.py'
     python3 pilot/oracle_diagnostic.py
-    python3 pilot/run.py --profile smoke --methods baseline joint --seeds 0
-    bash pilot/run_3h.sh --device cuda --backend reference
+    python3 pilot/run.py --profile smoke --methods baseline joint --seeds 0 --eval-batches 1 --eval-batch-size 2 --budget-seconds 120
+    bash pilot/run_3h.sh --device cuda --backend reference --guard native --precision float32 --seeds 0 1
 
-CPU can be tested with --device cpu. The explicit GNU/Linux launcher enforces
-10,800 seconds total (3 hours) and an inner 10,200-second run budget.
-Outputs: runs/predskip_joint/manifest.json, per-seed arm JSON, decision.json,
-and error logs. Incomplete comparisons remain INCONCLUSIVE. This runner does
-not launch remote training or create a background job.
+A one-seed smoke run is INCONCLUSIVE and is not a method result. Runs use new
+timestamped subdirectories under runs/predskip_joint/ and never overwrite
+earlier result directories.
 
-Optional official NVIDIA GDN-2 operator (not automatically installed):
+## Official kernel path
+
+Use the upstream installation instructions at this exact revision; no NVIDIA
+source is vendored.
 
     git clone https://github.com/NVlabs/GatedDeltaNet-2.git
     git -C GatedDeltaNet-2 checkout de8476de0fecae08fc16f0bf3154900244c61c73
-    # Install the dependencies according to that pinned NVIDIA README.
-    python3 pilot/validate_official.py --official-root ./GatedDeltaNet-2
-    bash pilot/run_3h.sh --device cuda --backend official --official-root ./GatedDeltaNet-2
 
-Do not bypass the numeric parity test. The official backend calls unchanged
-NVIDIA chunk_gdn2, but the surrounding decoder/projections are a SMALL
-reference model, not the full NVIDIA 1.3B architecture. Repeated chunk kernel
-calls and fetching chunk-start states may be slower than native full-sequence
-GDN-2. Measure tokens/sec, not just accuracy. NVIDIA code is not vendored and
-has NVIDIA Source Code License-NC, NOT MIT.
+After installing its documented dependencies in the target environment:
 
-## Model sizing
+    python3 pilot/validate_official.py --official-root ./GatedDeltaNet-2 --precision float32 --guards raw native --hidden 128 --heads 2 --key-dim 16 --value-dim 16 --chunk 16 --conv-size 4 --gamma 0.25 --output runs/predskip_joint/parity.json
+    bash pilot/run_3h.sh --device cuda --backend official --official-root ./GatedDeltaNet-2 --guard native --precision float32 --parity-report runs/predskip_joint/parity.json --seeds 0 1
 
-| Stage | Decoder / heads / key dim | Actual parameters | Status |
-| --- | --- | ---: | --- |
-| smoke | D32 / L1 / H1 / K8 | 14,713 | locally smoke-tested |
-| 3-hour pilot | D128 / L2 / H2 / K16 | 388,802 | locally smoke-tested |
-| stress | D192 / L3 / H3 / K32 | prints at runtime | not full-run validated |
-| 100M-class sizing | D768 / L12 / H12 / K64 | 107,859,468 | sizing only |
-| 340M-class sizing | D896 / L24 / H14 / K64 / vocab32K | 346,617,624 | sizing only |
+The runner requires a successful report matching current source hash, pinned
+clean upstream checkout, precision, guard, methods, shape and gate settings.
+A changed configuration needs a new report. Do not relax tolerances to make a
+failed comparison pass. Validation compares outputs, final states, all
+operator input gradients, and model parameters rather than only q_proj.
 
-    python3 pilot/run.py --profile 100m-sizing --methods joint --seeds 0 --dry-run
-    python3 pilot/run.py --profile 340m-sizing --methods joint --seeds 0 --dry-run
+This remains a small matched-projection decoder, not NVIDIA's full 1.3B model.
+Every arm uses the same external chunk dispatch. Boundary-state reads and
+repeated kernel launches have a cost; soft skip does not itself skip compute.
+No GPU parity or speed result is claimed for the generated repair.
 
-Large modes are BLOCKED pending CUDA parity and efficient full-layer
-integration. Pilot recommendation: 1x RTX 4090 24GB and host RAM 16-32GB.
-Later 100M: 1x 80/97GB H100-class GPU if verified; 346M paper-class requires
-hardware/throughput profiling, potentially multi-GPU.
+## Evaluation and sizing
 
-## Data protocol and scoring
+Arms: baseline, write, joint, shuffled, keyread. The inherited generated
+associative-recall diagnostic is not official MQAR, FineWeb or RULER.
+Old-fact retention, new alias-key learning and new_post learning are all
+recorded. Default evaluation uses 256 independent sequences per panel,
+with identical samples across arms, raw per-sequence outcomes and exact counts.
 
-Pilot: online causal synthetic MQAR, 8 initial Key-Value facts, 8 repeated
-queries (deliberately hot/cold skewed), 4 later interfering facts, plus
-causal answer queries for TWO genuinely NEW post-interference facts, and
-NEW ALIAS KEY whose Value is the
-same as an earlier answer. Data generated on-the-fly with fixed seeds; no
-model is passed the answer-position labels. Loss is teacher-forced causal
-next-token cross entropy only at marked query-answer targets.
-Evaluation uses separate seeds and panels: 0/4 distractor facts and
-twice as many original fact pairs. Initial train 150 steps, batch 8, seeds 0,1.
+The report requires two distinct completed training seeds, old recall above the
+contextual-value baseline, complete matched samples, paired uncertainty and preserved
+plasticity. It outputs only INCONCLUSIVE, NO_CLEAR_DEVELOPMENTAL_ADVANTAGE or
+PROMISING_DEVELOPMENTAL, never a native benchmark or paper success.
 
-Core ablations (all same neural parameters and input sequences):
-- baseline: original GDN-2 recurrence, no skip
-- write: coauthor Predicted-Skip scales only w
-- joint: NEW main proposal scales both b and w
-- shuffled: content-mismatched value comparison, joint control
-- keyread: uses S_c^T k_t in place of S_c^T q_{t-1}, timing control
+Small profiles are smoke D32/L1/H1/K8, pilot D128/L2/H2/K16, and stress
+D192/L3/H3/K32. Counts now print from the actual selected configuration.
 
-Primary metrics: old fact recall after distractor writes (overall/hot/cold),
-NEW-fact acquisition accuracy, new alias-Key recall, answer accuracy/NLL,
-and retention-vs-plasticity tradeoff. Mechanism:
-mean rho at ANSWER token positions vs FACT value positions, fraction with
-rho<.5, gamma learned, throughput, wall time, VRAM. The gate event categories
-are used for EVALUATION ONLY, never as predictor inputs.
+    python3 pilot/run.py --profile 100m-sizing --methods joint --dry-run
+    python3 pilot/run.py --profile 340m-sizing --methods joint --dry-run
 
-Warning: a value can already have been retrieved but still belong to a
-genuinely NEW Key-Value association. The analytic oracle_diagnostic.py is
-an explicit counterexample showing Joint Skip may reject such an update.
+Large profiles remain sizing-only. Native benchmark integration, full-layer
+architecture integration and independently confirmed real-data results are
+outstanding.
 
-Prespecified 3-hour screen heuristic: in both complete seeds, Joint must beat
-both Write-only and baseline by >=3pp old-post recall, and new alias-Key
-accuracy and genuinely NEW-fact acquisition must each be no worse than 3pp
-below baseline. Both post-interference old recall and new-fact accuracy
-must exceed 15%, or the result is INCONCLUSIVE_NOT_LEARNED. Do not call passing one
-test paper-grade evidence; repeat >=3 seeds and plot precision/recall of skip
-decisions. Chance-level models are INCONCLUSIVE.
+## Preserved concurrent protocol additions
 
-## Stage 2 planned ONLY if the screen passes
+The latest hot/cold query-frequency skew, guaranteed hot/cold post-interference
+probes, and genuinely new-fact targets are retained. All groups save raw counts
+and per-sequence outcomes. Repeated query tokens also change learned K/V
+streams, so these neural experiments do not hold hidden Key statistics fixed.
 
-1. GPU forward/state/autograd parity with NVIDIA chunk_gdn2.
-2. Compare official GDN-2 baseline with identical kernel dispatch (same
-   chunking for ALL arms), then quantify additional chunk-state latency.
-3. ~108M model on document-disjoint streamed FineWeb-Edu plus held-out
-   answer-copy and new-Key/same-Value probes. Train >=100M tokens as a
-   follow-up budget; 3 hours NOT guaranteed.
-4. ~346.6M GDN-2 class trained under matched tokens, plus RULER multi-key
-   NIAH, JRT repeated-recall, 2K/4K/8K/16K, validation NLL/PPL,
-   mean rho by token type, time/tokens and peak VRAM.
+Because the hot value is queried much more often, vocabulary-uniform chance
+is a misleading baseline. The screen requires both baseline and candidate old
+recall to exceed max(1/pairs, observed hot-target fraction) by five percentage
+points, and requires both to reach at least 15% new-fact accuracy. These are
+conservative diagnostic prerequisites, not proof of key-value binding.
+The full requested method-by-seed matrix must finish; missing controls,
+unmatched examples, insufficient samples or timeouts remain INCONCLUSIVE.
 
-Public references:
-https://github.com/NVlabs/GatedDeltaNet-2
-https://github.com/NVIDIA/RULER
-https://huggingface.co/datasets/HuggingFaceFW/fineweb_edu_100BT
-No trained official GDN-2 performance claim has been made.
+Here hot means fact index 0; cold groups all other fact indices, with fact 1
+forced as a final probe. Cold does not mean never previously queried.

@@ -1,0 +1,37 @@
+{
+  "status": "SOURCE_REVIEWED_NUMERICAL_EXECUTION_PENDING",
+  "review_date": "2026-11-21",
+  "python_ast_parse": "PASS",
+  "parsed_files": [
+    "common.py",
+    "oracle_diagnostic.py",
+    "parity_contract.py",
+    "predicted_skip.py",
+    "run.py",
+    "screening.py",
+    "test_methods.py",
+    "test_screening.py",
+    "validate_official.py"
+  ],
+  "local_document_links": "PASS",
+  "authored_test_counts": {
+    "test_methods.py": 16,
+    "test_screening.py": 14
+  },
+  "unit_tests_executed": false,
+  "project_imports_executed": false,
+  "cuda_parity_executed": false,
+  "training_executed": false,
+  "source_sha256": {
+    "common.py": "64490eab99b988b26ea9aa72f4745969066007f99b346db522e97a9b2726fcb8",
+    "oracle_diagnostic.py": "2dc46cb5a0f19289abc2aad805b2bb6e6b24d4b474c4e6e779597540aa3ff5a5",
+    "parity_contract.py": "9a7f0278069152affd30f6cc0ef18207c9b534544a7e3f5dff214dd4f23f7472",
+    "predicted_skip.py": "60c3122673e6d4264e71c474e00af8524bd2f695e1e837168c37aca538ce01fa",
+    "run.py": "61e321f3917f0658884f8dd19419d126070dca55e000b74588ff9f2f150f24fd",
+    "screening.py": "1376863cb924217418df94fc5387feeb50fb5b740108ab789f4af0a451f30fe3",
+    "test_methods.py": "c1c1e4fed329e5bfc26269f7e044cada7b57f727886577b647272aa2a26263f1",
+    "test_screening.py": "a6590a89e9404ad6b40d593f31e6d5c1a11bf2ae26a9448e833cee9602bd000c",
+    "validate_official.py": "0985b316d7a5d1e76d9b114eedbaeeb8f4722859b162023701034783d7295189"
+  },
+  "scope": "Static syntax/source review only; not a runtime, benchmark or scientific pass"
+}
