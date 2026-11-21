@@ -1,0 +1,5 @@
+runs/
+.pilot_workspace/
+__pycache__/
+*.pyc
+.DS_Store
