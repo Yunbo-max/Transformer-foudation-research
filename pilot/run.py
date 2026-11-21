@@ -66,21 +66,64 @@ def main():
                       "--seed",seed,"--recl",50,"--out",out,"--nval",600]+flags,
                 results_file=out,timeout=1100,data_mode=manifest["mode"]))
     report=run_cases(upstream,cases,a.budget_seconds,work/"reports",default_timeout=1100)
-    summary={"data":manifest,"budget_s":a.budget_seconds,"screen":"INCONCLUSIVE","pairs":[]}
+    def nll_without_unk(rec):
+        """Weighted held-out NLL without the mapped unknown-token artefact."""
+        overall=float(rec["scores"]["val"])
+        unk=rec.get("bins",{}).get("unk")
+        if unk is None:
+            raise ValueError("upstream did not emit the required UNK bin")
+        unk_loss,unk_share=map(float,unk)
+        if not 0<=unk_share<1:
+            raise ValueError("invalid UNK target mass")
+        return (overall-unk_share*unk_loss)/(1-unk_share)
+
+    summary={"data":manifest,"budget_s":a.budget_seconds,
+             "screen":"INCONCLUSIVE","pairs":[],
+             "method_hypothesis":"Gradient-history regrouping must beat row-weight regrouping"}
     for seed in a.seeds:
         def fetch(v):
-            return report["runs"].get(f"rare_s{seed}_{v}",{}).get("record")
-        E,W,G,R=fetch("adam_eps"),fetch("learned_weights"),fetch("learned_gradients"),fetch("fixed_random")
-        if all(x is not None for x in (E,W,G,R)):
-            summary["pairs"].append(dict(seed=seed,baseline=E["scores"]["val"],
-              weights=W["scores"]["val"],gradients=G["scores"]["val"],
-              random=R["scores"]["val"],learned_gain=E["scores"]["val"]-W["scores"]["val"],
-              gradient_gain=W["scores"]["val"]-G["scores"]["val"],
-              rare_target_mass=W["rare_mass_lt100"]))
+            r=report["runs"].get(f"rare_s{seed}_{v}",{})
+            return r.get("record") if r.get("status")=="ok" else None
+        E,W,G,R,F=(fetch(v) for v in ("adam_eps","learned_weights",
+                 "learned_gradients","fixed_random","fixed_frequency"))
+        if all(x is not None for x in (E,W,G,R,F)):
+            n={name:nll_without_unk(record)
+               for name,record in (("adam_eps",E),("learned_weights",W),
+                   ("learned_gradients",G),("fixed_random",R),("fixed_frequency",F))}
+            def rare_10_31(rec):
+                z=rec.get("bins",{}).get("10-31")
+                return None if z is None else {"nll":float(z[0]),"mass":float(z[1])}
+            summary["pairs"].append(dict(
+              seed=seed,
+              nll_all={name:float(rec["scores"]["val"]) for name,rec in (
+                ("adam_eps",E),("learned_weights",W),("learned_gradients",G),
+                ("fixed_random",R),("fixed_frequency",F))},
+              nll_no_unk=n,
+              gain_weight_vs_eps=n["adam_eps"]-n["learned_weights"],
+              gain_grad_vs_weight=n["learned_weights"]-n["learned_gradients"],
+              gain_grad_vs_fixed=max(n["fixed_random"],n["fixed_frequency"])-n["learned_gradients"],
+              rare_10_31={name:rare_10_31(rec) for name,rec in (
+                ("adam_eps",E),("learned_weights",W),("learned_gradients",G))},
+              rare_target_mass=W["rare_mass_lt100"],
+              unknown_target_mass=float(W["bins"]["unk"][1])))
     if len(summary["pairs"])==len(a.seeds):
-        gains=[x["learned_gain"] for x in summary["pairs"]]
-        summary["screen"]="GO_REAL_DATA" if min(gains)>=0.01 and min(x["rare_target_mass"] for x in summary["pairs"])>=0.05 else "NO_GO_OR_REDESIGN"
-        summary["gradient_extension"]="GO" if min(x["gradient_gain"] for x in summary["pairs"])>=0.005 else "NOT_SUPPORTED"
+        support=all(x["gain_weight_vs_eps"]>=.01 and
+                    x["rare_target_mass"]>=.05 for x in summary["pairs"])
+        new_support=all(x["gain_grad_vs_weight"]>=.005 and
+                        x["nll_no_unk"]["learned_gradients"]<
+                            min(x["nll_no_unk"]["fixed_random"],
+                                x["nll_no_unk"]["fixed_frequency"])
+                        for x in summary["pairs"])
+        summary["weight_regroup_support"]=support
+        summary["gradient_extension_support"]=new_support
+        if manifest["mode"]=="synthetic-topic-zipf":
+            summary["screen"]="INCONCLUSIVE_PROXY_ONLY"
+        elif support and new_support:
+            summary["screen"]="GO_REAL_REPLICATION_NEW_GRADIENT_EXTENSION"
+        elif support:
+            summary["screen"]="BASELINE_REPLICATES_GRADIENT_EXTENSION_NOT_SUPPORTED"
+        else:
+            summary["screen"]="NO_CLEAR_REAL_DATA_ADVANTAGE"
     (work/"reports"/"decision.json").write_text(json.dumps(summary,indent=2))
     print(json.dumps(summary,indent=2))
     if not summary["pairs"]:
