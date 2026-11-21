@@ -74,13 +74,28 @@ def main():
             old_post_query_decay=read("query-decay","old_post_acc"),
             old_post_isotropic=read("isotropic","old_post_acc"),
             alias_query_joint=read("query-joint","alias_acc"),
-            alias_key_joint=read("key-joint","alias_acc")))
+            alias_key_joint=read("key-joint","alias_acc"),
+            new_post_query_joint=read("query-joint","new_post_acc"),
+            new_post_key_joint=read("key-joint","new_post_acc"),
+            new_post_isotropic=read("isotropic","new_post_acc"),
+            new_post_query_write=read("query-write","new_post_acc"),
+            new_post_query_decay=read("query-decay","new_post_acc")))
     decision="INCONCLUSIVE"
     if len(matched)==len(args.seeds) and matched:
-        if all(r["old_post_query_joint"]>=r["old_post_key_joint"]+.03 and
+        # Prevent "old-memory win" caused by refusing all novel associations.
+        # Chance is about 1/key_space; require meaningful old AND new recall.
+        if any(r["old_post_query_joint"] is None or
+               r["new_post_query_joint"] is None for r in matched):
+            decision="INCONCLUSIVE_MISSING_NEW_FACT"
+        elif any(r["old_post_query_joint"] < .15 or
+                 r["new_post_query_joint"] < .15 for r in matched):
+            decision="INCONCLUSIVE_NOT_LEARNED"
+        elif all(r["old_post_query_joint"]>=r["old_post_key_joint"]+.03 and
                r["old_post_query_joint"]>=max(r["old_post_query_write"],
                                                r["old_post_query_decay"])+.02 and
-               r["alias_query_joint"]>=r["alias_key_joint"]-.03
+               r["alias_query_joint"]>=r["alias_key_joint"]-.03 and
+               r["new_post_query_joint"]>=r["new_post_key_joint"]-.03 and
+               r["new_post_query_joint"]>=r["new_post_isotropic"]-.03
                for r in matched):
             decision="GO_TO_REPLICATION"
         else:decision="NO_CLEAR_ADVANTAGE"
