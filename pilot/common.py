@@ -24,11 +24,14 @@ def generate_batch(batch=4,pairs=8,queries=8,distractors=4,alias=True,*,
         facts=list(zip(keys[:pairs],vals[:pairs]))
         for k,v in facts:text.extend([FACT,k,v])
         targets=[];groups=[]
-        # Equal initial write frequency, deliberately unequal query usage:
-        # fact 0 is HOT, fact 1 is guaranteed COLD after interference.
-        # Existing value/key write counts are unchanged by this intervention.
+        # Same number of INITIAL fact writes, intentionally skewed query usage.
+        # Hot fact 0 is queried often; cold fact 1 is queried at the end.
+        # Important: query tokens ALSO produce K/V writes in a recurrent LM,
+        # so historical Key statistics are not held fixed end-to-end.
+        # A separate controlled mathematical check must isolate that contrast.
         query_ids=[0]+[0 if rng.random()<.80 else rng.randrange(pairs)
                        for _ in range(1,queries-1)]+[1]
+        if queries>=3: query_ids[-2]=0  # guarantee hot post-interference probe
         for qi,j in enumerate(query_ids):
             if qi==queries//2:
                 for d in range(distractors):
