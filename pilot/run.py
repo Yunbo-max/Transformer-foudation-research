@@ -32,7 +32,7 @@ def main():
     p=argparse.ArgumentParser()
     p.add_argument("--device",choices=["cpu","cuda","mps"],default="cuda")
     p.add_argument("--budget-seconds",type=int,default=10500)
-    p.add_argument("--work-dir",default=".pilot_workspace_rare")
+    p.add_argument("--work-dir",default=".pilot_workspace_rare_v2")
     p.add_argument("--real-data-dir",default=None)
     p.add_argument("--steps",type=int,default=400)
     p.add_argument("--seeds",type=int,nargs="+",default=[0,1])
