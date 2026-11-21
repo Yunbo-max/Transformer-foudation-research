@@ -87,7 +87,9 @@ hardware/throughput profiling, potentially multi-GPU.
 ## Data protocol and scoring
 
 Pilot: online causal synthetic MQAR, 8 initial Key-Value facts, 8 repeated
-queries, 4 later interfering facts, plus NEW ALIAS KEY whose Value is the
+queries (deliberately hot/cold skewed), 4 later interfering facts, plus
+causal answer queries for TWO genuinely NEW post-interference facts, and
+NEW ALIAS KEY whose Value is the
 same as an earlier answer. Data generated on-the-fly with fixed seeds; no
 model is passed the answer-position labels. Loss is teacher-forced causal
 next-token cross entropy only at marked query-answer targets.
@@ -101,8 +103,9 @@ Core ablations (all same neural parameters and input sequences):
 - shuffled: content-mismatched value comparison, joint control
 - keyread: uses S_c^T k_t in place of S_c^T q_{t-1}, timing control
 
-Primary metrics: old fact recall after distractor writes, new alias-Key recall,
-answer accuracy/NLL, and retention-vs-plasticity tradeoff. Mechanism:
+Primary metrics: old fact recall after distractor writes (overall/hot/cold),
+NEW-fact acquisition accuracy, new alias-Key recall, answer accuracy/NLL,
+and retention-vs-plasticity tradeoff. Mechanism:
 mean rho at ANSWER token positions vs FACT value positions, fraction with
 rho<.5, gamma learned, throughput, wall time, VRAM. The gate event categories
 are used for EVALUATION ONLY, never as predictor inputs.
@@ -113,7 +116,9 @@ an explicit counterexample showing Joint Skip may reject such an update.
 
 Prespecified 3-hour screen heuristic: in both complete seeds, Joint must beat
 both Write-only and baseline by >=3pp old-post recall, and new alias-Key
-accuracy must be no worse than 3pp below baseline. Do not call passing one
+accuracy and genuinely NEW-fact acquisition must each be no worse than 3pp
+below baseline. Both post-interference old recall and new-fact accuracy
+must exceed 15%, or the result is INCONCLUSIVE_NOT_LEARNED. Do not call passing one
 test paper-grade evidence; repeat >=3 seeds and plot precision/recall of skip
 decisions. Chance-level models are INCONCLUSIVE.
 
