@@ -81,12 +81,22 @@ def main():
             alias_baseline=read("baseline","alias_acc"),
             alias_write_only=read("write","alias_acc"),
             alias_joint=read("joint","alias_acc"),
+            new_post_baseline=read("baseline","new_post_acc"),
+            new_post_write_only=read("write","new_post_acc"),
+            new_post_joint=read("joint","new_post_acc"),
             joint_mean_rho=read("joint","skip_mean")))
     decision="INCONCLUSIVE"
     if len(matched)==len(args.seeds) and matched:
-        if all(r["old_post_joint"]>=r["old_post_write_only"]+.03 and
+        if any(r["old_post_joint"] is None or r["new_post_joint"] is None
+               for r in matched):
+            decision="INCONCLUSIVE_MISSING_NEW_FACT"
+        elif any(r["old_post_joint"] < .15 or r["new_post_joint"] < .15
+                 for r in matched):
+            decision="INCONCLUSIVE_NOT_LEARNED"
+        elif all(r["old_post_joint"]>=r["old_post_write_only"]+.03 and
                r["old_post_joint"]>=r["old_post_baseline"]+.03 and
-               r["alias_joint"]>=r["alias_baseline"]-.03
+               r["alias_joint"]>=r["alias_baseline"]-.03 and
+               r["new_post_joint"]>=r["new_post_baseline"]-.03
                for r in matched):
             decision="GO_TO_OFFICIAL_GDN2_VALIDATION"
         else:decision="NO_CLEAR_ADVANTAGE"
