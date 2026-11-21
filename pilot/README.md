@@ -1,125 +1,128 @@
-# SG-Delta — Joint Historical-Query Write Protection + Directional Retention
+# SG-Delta — Joint Historical-Query Write Protection and Directional Decay
 
-Status (2026-11-21): PyTorch CPU smoke and math tests passed locally; GPU,
-official GDN-2, real text and larger-model training NOT run. This is the sole
-current SG-Delta main method. Previous query-write-only SG-Delta is an ablation.
-There are no Fork/Replace, state banks or extra chunk-start reads.
+**Current revision: source-reviewed repair; numerical tests and training on
+these exact bytes have not been executed in the Web review.** Historical
+smoke-test statements applied to earlier revisions, not this one.
 
-## Exact algorithm (one recurrent state per head)
+Start with [LOCAL_AGENT_RUNBOOK.md](LOCAL_AGENT_RUNBOOK.md).
+The full derivation and mathematical scope are in [MATH.md](MATH.md).
+The primary papers and pinned author code are in [SOURCES.md](SOURCES.md).
+[WEB_HANDOFF.md](WEB_HANDOFF.md) records changed settings and pending checks.
 
-For each chunk c, C_q uses only already-observed queries:
+## Method
 
-    H_c = lambda * I + mu * C_q,c
-    P_c = I - lambda * solve(H_c,I)
-    D_c,t = alpha_fast,t * I + (alpha_slow,t-alpha_fast,t) * P_c
-    S_before = D_c,t @ S_{t-1}
-    e_t = v_t - S_before.T @ k_t
-    u_t = solve(H_c,k_t)
-    a_t = u_t/(tau + k_t.T @ u_t)
-    S_t = S_before + outer(a_t,e_t)
-    output_t = S_t.T @ q_t
+For each head, S is the single content memory with shape K x V. C is a separate
+K x K statistic and must be included in memory accounting. It contains only
+completed chunks' exponentially weighted projected-query outer products.
 
-Update C_q using a strict causal exponentially weighted q q^T after each
-chunk; factor H once per chunk. The spectrum of P lies in [0,1] and D stays
-between the two retention factors 0<alpha_fast<=alpha_slow<=1. Both protection
-of the Write direction and slowed decay derive from the SAME historical
-Query statistics. Current implementation counts actual Query occurrences
-but does not yet infer semantic retrieval success or use future gold labels.
-It is not a scalar beta gate and is not the old write-only model.
+    H = lambda I + mu_eff C
+    P = I - lambda H^{-1}
+    D_t = alpha_fast,t I + (alpha_slow,t - alpha_fast,t) P
+    Sbar_t = D_t S_{t-1}
+    e_t = v_t - Sbar_t^T k_t
+    a_t = H^{-1} k_t / (tau + k_t^T H^{-1} k_t)
+    S_t = Sbar_t + a_t e_t^T
+    output_t = S_t^T q_t
 
-## Quick start
+The approved joint formula is preserved. Cholesky, covariance, residuals and
+state accumulation now run in FP32 under mixed precision, or FP64 for explicit
+mathematical checks. No silent diagonal jitter or eigenvalue clipping changes
+the objective. The helpers used by the actual mixer are tested against the
+unified quadratic objective's direct solve.
 
-Python 3.10+, PyTorch with appropriate CUDA build when using NVIDIA GPU.
+The code counts all projected queries, not verified retrieval success or
+semantic importance. Protection is soft; stale frequently used associations
+can still impede new learning. Within-chunk fixed-H stability is documented;
+no unrestricted global Euclidean contraction theorem is claimed.
+
+## Configuration changes
+
+- The runner uses a causal Q/K/V depthwise convolution of size 4 in **all
+  arms**; --conv-size 0 restores the original no-convolution ablation.
+  The constructor retains conv_size=0 for compatibility.
+- Original geometry defaults remain lambda=1, mu=8, tau=1, EMA=0.98.
+- --geometry-scale raw preserves mu_eff=mu. The explicit alternative
+  --geometry-scale dimension uses mu_eff=mu*K and is recorded as a different
+  configuration, not silently applied during model scaling.
+- --differentiate-statistics enables gradients through historical Query
+  statistics; default behavior keeps the prior stop-gradient choice.
+- --precision float32 is the default. --precision bfloat16 uses autocast for
+  projections while keeping recurrent mathematics in FP32.
+- Stats include actual mean decay and content/statistic state element counts.
+
+Changing convolution, scaling, precision or stop-gradient settings invalidates
+direct comparison with an old run. Re-run all paired arms at the same settings.
+
+## Local commands
+
+Run from the repository root in an existing compatible Python/PyTorch environment.
 
     python3 -m unittest discover -s pilot -p 'test_*.py'
-    python3 pilot/mechanism_check.py  # no training, Key stream held fixed
-    python3 pilot/run.py --profile smoke --methods isotropic query-joint --seeds 0
-    bash pilot/run_3h.sh --device cuda
+    python3 pilot/run.py --profile smoke --methods isotropic query-joint --seeds 0 --eval-batches 1 --eval-batch-size 2 --budget-seconds 120
+    bash pilot/run_3h.sh --device cuda --precision float32 --seeds 0 1
 
-For CPU, use --device cpu. GNU/Linux three-hour launcher uses a 10,800-second
-outside timeout and 10,200-second inner experimental budget. Report files:
-runs/sgdelta_joint/manifest.json, per-arm seed JSON, and decision.json.
-Non-completion is INCONCLUSIVE, never a win.
+The one-seed smoke run is a software check and always has an INCONCLUSIVE
+scientific screen. The launcher enforces a 10,800-second outer wall limit and
+10,200-second inner budget; completion of all arms is not guaranteed.
 
-## Model sizing (measured by constructed model parameter counting, not training)
+Outputs go under a new timestamped directory inside runs/sgdelta_joint/.
+The directory is printed at startup. Old outputs are not overwritten.
+Files include manifest.json, arm/seed JSON, decision.json and any error files.
 
-| Stage | Decoder / heads / key dim | Parameters | Status |
-| --- | --- | ---: | --- |
-| CPU smoke | D32 / L1 / H1 / K8 | 14,250 | locally smoke-tested |
-| 3-hour pilot | D128 / L2 / H2 / K16 | 373,320 | locally smoke-tested |
-| stress | D192 / L3 / H3 / K32 | prints at startup | not full-run validated |
-| 100M-class sizing | D768 / L12 / H12 / K64 | 93,906,720 | sizing only |
-| 340M-class sizing | D896 / L24 / H14 / K64 / vocab32K | 308,642,208 | sizing only |
+## Arms and developer diagnostic
 
-Size only (no weight allocation):
+Arms: isotropic, query-write, query-decay, query-joint, key-joint,
+channel-decay, and optional reverse-joint. Query-joint remains the main SG
+method; query-write is an ablation. The isotropic arm is a normalized Delta
+reference with fixed effective beta at the default settings, not official
+GDN-2.
 
-    python3 pilot/run.py --profile 100m-sizing --methods query-joint --seeds 0 --dry-run
-    python3 pilot/run.py --profile 340m-sizing --methods query-joint --seeds 0 --dry-run
+The inherited generated diagnostic is preserved, including the newly added
+new_post targets. It is not official MQAR. Three panels contain no interference,
+standard interference, and more stored pairs. Evaluation defaults to 16
+batches x 16 independent sequences per panel. Paired arms share exact examples.
+Per-sequence outcomes, counts, seeds, source hashes, timing and memory are saved.
 
-Large profiles are BLOCKED from training in this reference: no optimized full
-non-diagonal decay kernel exists here. Pilot: 1x 4090 24GB, CPU RAM >=16GB.
-After GPU profiling: 1x H100 80GB or 97GB GPU for ~100M; use multiple H100
-for large-scale 300M NTP if 10B+ tokens are required. These are recommended
-budgets, not measured device peaks.
+Reports require at least two distinct complete training seeds, established
+old recall above the contextual-value baseline, complete matched evaluation, old-recall improvement over
+the simple baseline AND individual components, and no clear loss of alias or
+new-fact learning. Uncertainty uses paired sequence resampling within each
+fitted seed. This does not estimate uncertainty across a population of training
+seeds and is not a formal multiple-comparison confirmation procedure.
 
-## Data and evaluation
+There is no automatic scientific GO/PASS. PROMISING_DEVELOPMENTAL means only
+that native benchmark follow-up may be worth doing; incomplete, chance-level,
+or insufficiently sampled comparisons are INCONCLUSIVE.
 
-Pilot data: seeded on-the-fly synthetic MQAR; distinct initial Key->Value
-associations, hot-vs-cold old-query frequency, 4 new interfering facts,
-causal probes of TWO genuinely NEW associations after their arrival, and an
-additional NEW KEY with the SAME value as a previously retrieved fact.
-All input sequences are identical across arms at the same seed, while
-validation uses held-out generator seeds. No dataset download or gold labels
-are supplied to the model. Train with causal next-token cross entropy masked
-to answer positions only.
+## Scale and outstanding work
 
-Default: 8 initial facts, 8 old queries, 4 distractors (+2 new-fact queries),
-batch 8, 150 steps,
-two seeds (0,1). Three evaluation panels: zero distractors, four distractors,
-and doubled facts at fixed distractors. Primary scores: old fact recall before and after interference (overall,
-hot and cold), genuine NEW-fact recall after writing, alias new-Key recall,
-answer NLL/accuracy. The generator makes initial fact writes equal, but
-repeated query tokens ALSO produce keys in a recurrent LM: this is not an
-intervention holding all hidden Key statistics constant. The separate
-mechanism_check.py mathematically isolates that contrast. Secondary:
-mean protection spectrum, write cosine, decay rates, GPU peak, wall time,
-steps and tokens. Do NOT report artificial pilot as FineWeb or RULER.
+Smoke D32/L1/H1/K8; pilot D128/L2/H2/K16; stress D192/L3/H3/K32.
+Actual parameter counts are printed for the selected convolution/configuration.
+Earlier hard-coded sizing numbers are historical and have been removed.
 
-Arms:
-- isotropic: Delta Rule with scalar decay, no query geometry
-- query-write: old SG-Delta full Write only, scalar decay
-- query-decay: query-dependent full Decay only, isotropic Write
-- query-joint: NEW PRIMARY SG-Delta (both)
-- key-joint: same full matrix capacity, historical Key statistics instead
-- channel-decay: learned input-dependent diagonal decay baseline
-- reverse-joint: negative control that slows unimportant directions
+    python3 pilot/run.py --profile 100m-sizing --methods query-joint --dry-run
+    python3 pilot/run.py --profile 340m-sizing --methods query-joint --dry-run
 
-Predeclared heuristic for follow-up: two complete seeds; query-joint improves
-post-interference old recall by >=3pp over key-joint and >=2pp over BOTH
-query-write and query-decay; alias-key learning falls no more than 3pp vs
-key-joint; genuine NEW-fact recall is no more than 3pp below key-joint or
-isotropic. Both old-post and new-fact accuracy must exceed 15%; otherwise
-INCONCLUSIVE_NOT_LEARNED (not a negative or positive result). Also report old-vs-new learning Pareto curves. This does NOT replace
-confidence intervals or prove novelty; close-to-chance results are inconclusive.
+Large modes remain sizing-only. This full-matrix reference has no optimized
+non-diagonal decay kernel or streaming cache. No new GPU peak, training speed,
+real-text performance, or official baseline reproduction is claimed.
+Native FineWeb/RULER/JRT-style evaluation and faithful PGDN/OSDN/GDN-2
+comparators remain the next scientific work after local correctness checks.
 
-## Stage 2 / 3 planned ONLY after pilot passes
+## Preserved concurrent protocol additions
 
-1. Numerically exact forward/state/gradient parity versus a faster
-   implementation. PGDN has a reusable asymmetric key kernel, but does NOT
-   directly support our full non-diagonal Query-conditioned decay.
-2. 93.9M text LM with document-disjoint streamed FineWeb-Edu; fixed tokenizer,
-   100M to 1B tokens per model as an intermediate check, not within 3 hours.
-3. 308.6M paper class: compare official GDN-2, PGDN, OSDN, Bayesian Memory at
-   matched training tokens, state bytes, sequences and hardware.
-4. Real evaluation: held-out LM NLL/PPL, JRT or Zebra-style recall, RULER
-   MK-NIAH (2K/4K/8K/16K), interference curves, new-fact learning, training
-   tokens/sec and peak VRAM.
+The latest hot/cold query-frequency skew, guaranteed hot/cold post-interference
+probes, and genuinely new-fact targets are retained. All groups save raw counts
+and per-sequence outcomes. Repeated query tokens also change learned K/V
+streams, so these neural experiments do not hold hidden Key statistics fixed.
 
-References:
-https://github.com/NVlabs/GatedDeltaNet-2
-https://github.com/ntumm120/preconditioned-deltanet
-https://github.com/Lhongpei/OSDN
-https://github.com/NVIDIA/RULER
+Because the hot value is queried much more often, vocabulary-uniform chance
+is a misleading baseline. The screen requires both baseline and candidate old
+recall to exceed max(1/pairs, observed hot-target fraction) by five percentage
+points, and requires both to reach at least 15% new-fact accuracy. These are
+conservative diagnostic prerequisites, not proof of key-value binding.
+The full requested method-by-seed matrix must finish; missing controls,
+unmatched examples, insufficient samples or timeouts remain INCONCLUSIVE.
 
-NVIDIA GDN-2 is subject to its NVIDIA Source Code License-NC and is NOT
-redistributed here. No official GPU or paper-sized results have been obtained.
+Here hot means fact index 0; cold groups all other fact indices, with fact 1
+forced as a final probe. Cold does not mean never previously queried.
