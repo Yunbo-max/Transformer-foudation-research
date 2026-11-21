@@ -29,6 +29,12 @@ def generate_batch(batch=4,pairs=8,queries=8,distractors=4,alias=True,*,
             if qi==queries//2:
                 for d in range(distractors):
                     text.extend([FACT,keys[pairs+d],vals[pairs+d]])
+                # Crucial plasticity control: immediately query genuinely new facts.
+                # This separates remembering old facts from rejecting all new writes.
+                for d in range(min(2,distractors)):
+                    text.extend([QUERY,keys[pairs+d],vals[pairs+d]])
+                    targets.append(len(text)-1)
+                    groups.append("new_post")
             text.extend([QUERY,facts[j][0],facts[j][1]])
             targets.append(len(text)-1)
             groups.append("old_post" if qi>=queries//2 else "old_pre")
@@ -42,7 +48,7 @@ def generate_batch(batch=4,pairs=8,queries=8,distractors=4,alias=True,*,
     T=len(tokens[0][0]);assert all(len(z[0])==T for z in tokens)
     x=torch.tensor([z[0] for z in tokens],dtype=torch.long,device=device)
     mask=torch.zeros((batch,T-1),dtype=torch.bool,device=device)
-    group={g:torch.zeros_like(mask) for g in ("old_pre","old_post","alias")}
+    group={g:torch.zeros_like(mask) for g in ("old_pre","old_post","alias","new_post")}
     answer_token_mask=torch.zeros((batch,T),dtype=torch.bool,device=device)
     fact_token_mask=torch.zeros_like(answer_token_mask)
     for b,(seq,targets,labels) in enumerate(tokens):
