@@ -104,8 +104,8 @@ PRESETS={
 
 def train_case(model,cfg,*,device,seed,steps,budget_seconds,out_path):
     torch.manual_seed(seed)
-    model=model.to(device)
     if device=="cuda":torch.cuda.reset_peak_memory_stats()
+    model=model.to(device)
     optimizer=torch.optim.AdamW(model.parameters(),lr=1e-3,weight_decay=.01)
     start=time.monotonic();curve=[];status="ok";batch=None
     for i in range(steps):
