@@ -24,7 +24,11 @@ def generate_batch(batch=4,pairs=8,queries=8,distractors=4,alias=True,*,
         facts=list(zip(keys[:pairs],vals[:pairs]))
         for k,v in facts:text.extend([FACT,k,v])
         targets=[];groups=[]
-        query_ids=[0]+[rng.randrange(pairs) for _ in range(queries-1)]
+        # Equal initial write frequency, deliberately unequal query usage:
+        # fact 0 is HOT, fact 1 is guaranteed COLD after interference.
+        # Existing value/key write counts are unchanged by this intervention.
+        query_ids=[0]+[0 if rng.random()<.80 else rng.randrange(pairs)
+                       for _ in range(1,queries-1)]+[1]
         for qi,j in enumerate(query_ids):
             if qi==queries//2:
                 for d in range(distractors):
@@ -37,7 +41,8 @@ def generate_batch(batch=4,pairs=8,queries=8,distractors=4,alias=True,*,
                     groups.append("new_post")
             text.extend([QUERY,facts[j][0],facts[j][1]])
             targets.append(len(text)-1)
-            groups.append("old_post" if qi>=queries//2 else "old_pre")
+            groups.append(("old_post_hot" if j==0 else "old_post_cold")
+                          if qi>=queries//2 else "old_pre")
             if alias and qi==0:
                 ak=keys[-1];av=facts[j][1]
                 text.extend([FACT,ak,av]) # new Key, same old Value
@@ -48,12 +53,14 @@ def generate_batch(batch=4,pairs=8,queries=8,distractors=4,alias=True,*,
     T=len(tokens[0][0]);assert all(len(z[0])==T for z in tokens)
     x=torch.tensor([z[0] for z in tokens],dtype=torch.long,device=device)
     mask=torch.zeros((batch,T-1),dtype=torch.bool,device=device)
-    group={g:torch.zeros_like(mask) for g in ("old_pre","old_post","alias","new_post")}
+    group={g:torch.zeros_like(mask) for g in ("old_pre","old_post","old_post_hot","old_post_cold","alias","new_post")}
     answer_token_mask=torch.zeros((batch,T),dtype=torch.bool,device=device)
     fact_token_mask=torch.zeros_like(answer_token_mask)
     for b,(seq,targets,labels) in enumerate(tokens):
         for pos,name in zip(targets,labels):
             mask[b,pos-1]=True;group[name][b,pos-1]=True
+            if name in ("old_post_hot","old_post_cold"):
+                group["old_post"][b,pos-1]=True
             answer_token_mask[b,pos]=True
         for pos in range(1,len(seq)-2):
             if seq[pos]==FACT:fact_token_mask[b,pos+2]=True
