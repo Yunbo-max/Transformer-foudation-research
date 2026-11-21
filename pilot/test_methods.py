@@ -38,6 +38,8 @@ class SGDeltaTests(unittest.TestCase):
         # Every new fact query is in the causal answer loss mask.
         self.assertTrue(torch.all(batch["loss_mask"][novel]))
         self.assertGreater(int(batch["groups"]["old_post"].sum()),0)
+        self.assertGreater(int(batch["groups"]["old_post_hot"].sum()),0)
+        self.assertGreater(int(batch["groups"]["old_post_cold"].sum()),0)
         self.assertGreater(int(batch["groups"]["alias"].sum()),0)
 
     def test_end_to_end_gradients(self):
