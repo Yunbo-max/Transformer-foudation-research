@@ -27,6 +27,16 @@ class PredSkipTests(unittest.TestCase):
         x2[:,4:]+=torch.randn_like(x2[:,4:])
         y,_=m(x);z,_=m(x2)
         self.assertTrue(torch.allclose(y[:,:4],z[:,:4],atol=1e-6))
+    def test_new_fact_plasticity_is_explicitly_scored(self):
+        batch=generate_batch(batch=3,pairs=4,queries=4,distractors=2,
+            key_space=32,seed=20261121)
+        novel=batch["groups"]["new_post"]
+        self.assertEqual(int(novel.sum().item()),6)
+        # Every new fact query is in the causal answer loss mask.
+        self.assertTrue(torch.all(batch["loss_mask"][novel]))
+        self.assertGreater(int(batch["groups"]["old_post"].sum()),0)
+        self.assertGreater(int(batch["groups"]["alias"].sum()),0)
+
     def test_end_to_end_gradients(self):
         z=generate_batch(batch=2,pairs=3,queries=3,distractors=0,key_space=16)
         model=MemoryLM(z["vocab_size"],24,1,lambda d,i:
