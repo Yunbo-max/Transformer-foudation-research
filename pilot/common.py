@@ -140,6 +140,16 @@ def train_case(model,cfg,*,device,seed,steps,budget_seconds,out_path):
                         if isinstance(val,(float,int)):
                             agg.setdefault(key,[]).append(float(val))
             score.update({key:sum(v)/len(v) for key,v in agg.items()})
+            # Gate diagnostic uses event masks ONLY for scoring, never for the model.
+            mixer=model.blocks[0].mixer
+            rho=getattr(mixer,"last_rho",None)
+            if rho is not None:
+                for label,mask in (("answer",z["answer_token_mask"]),
+                                   ("fact",z["fact_token_mask"])):
+                    selected=rho.masked_select(mask[:,None,:].expand_as(rho))
+                    if selected.numel():
+                        score["rho_"+label]=float(selected.float().mean().item())
+                        score["skip_fraction_"+label]=float((selected<.5).float().mean().item())
             eval_rows.append(score)
     if device=="cuda":torch.cuda.synchronize()
     peak=torch.cuda.max_memory_allocated()/1e9 if device=="cuda" else None
