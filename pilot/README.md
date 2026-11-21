@@ -32,6 +32,7 @@ It is not a scalar beta gate and is not the old write-only model.
 Python 3.10+, PyTorch with appropriate CUDA build when using NVIDIA GPU.
 
     python3 -m unittest discover -s pilot -p 'test_*.py'
+    python3 pilot/mechanism_check.py  # no training, Key stream held fixed
     python3 pilot/run.py --profile smoke --methods isotropic query-joint --seeds 0
     bash pilot/run_3h.sh --device cuda
 
@@ -64,17 +65,23 @@ budgets, not measured device peaks.
 ## Data and evaluation
 
 Pilot data: seeded on-the-fly synthetic MQAR; distinct initial Key->Value
-associations, frequently queried old facts, 4 new interfering facts, and an
+associations, hot-vs-cold old-query frequency, 4 new interfering facts,
+causal probes of TWO genuinely NEW associations after their arrival, and an
 additional NEW KEY with the SAME value as a previously retrieved fact.
 All input sequences are identical across arms at the same seed, while
 validation uses held-out generator seeds. No dataset download or gold labels
 are supplied to the model. Train with causal next-token cross entropy masked
 to answer positions only.
 
-Default: 8 initial facts, 8 queries, 4 distractors, batch 8, 150 steps,
+Default: 8 initial facts, 8 old queries, 4 distractors (+2 new-fact queries),
+batch 8, 150 steps,
 two seeds (0,1). Three evaluation panels: zero distractors, four distractors,
-and doubled facts at fixed distractors. Primary scores: old fact recall before
-and after interference, new alias-Key accuracy, answer NLL/accuracy. Secondary:
+and doubled facts at fixed distractors. Primary scores: old fact recall before and after interference (overall,
+hot and cold), genuine NEW-fact recall after writing, alias new-Key recall,
+answer NLL/accuracy. The generator makes initial fact writes equal, but
+repeated query tokens ALSO produce keys in a recurrent LM: this is not an
+intervention holding all hidden Key statistics constant. The separate
+mechanism_check.py mathematically isolates that contrast. Secondary:
 mean protection spectrum, write cosine, decay rates, GPU peak, wall time,
 steps and tokens. Do NOT report artificial pilot as FineWeb or RULER.
 
@@ -90,7 +97,9 @@ Arms:
 Predeclared heuristic for follow-up: two complete seeds; query-joint improves
 post-interference old recall by >=3pp over key-joint and >=2pp over BOTH
 query-write and query-decay; alias-key learning falls no more than 3pp vs
-key-joint. Also report old-vs-new learning Pareto curves. This does NOT replace
+key-joint; genuine NEW-fact recall is no more than 3pp below key-joint or
+isotropic. Both old-post and new-fact accuracy must exceed 15%; otherwise
+INCONCLUSIVE_NOT_LEARNED (not a negative or positive result). Also report old-vs-new learning Pareto curves. This does NOT replace
 confidence intervals or prove novelty; close-to-chance results are inconclusive.
 
 ## Stage 2 / 3 planned ONLY after pilot passes
