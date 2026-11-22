@@ -4,15 +4,16 @@ Based on the original coauthor 04 Identity/Pointer and 05 Pointer Doubling,
 this branch now contains TWO independent acceleration hypotheses plus their
 crossed ablation. Existing original-method pilot below is unchanged.
 
-- **Sparse Pointer Attention**: causal completed-block routing + exact
-  candidate refinement with no-backtrack. See pointer_accel.py.
+- **Sparse Pointer Attention**: causal block routing AND identity-aware
+  content-hash routing, with exact QK/no-backtrack refinement. See
+  pointer_accel.py and pointer_hash.py.
 - **Online Jump-State Cache**: resident budget over (node,2^level)-hop
   composed pointers, with LRU/LFU/random/level_LRU and Multi-Level Jump-State
   Utility admission. See jump_cache.py.
-- **2x2 crossed experiment**: Dense/Sparse × No Cache/Utility Cache on
+- **3x2 crossed experiment**: Dense/Block/Hash × No Cache/Utility Cache on
   identical frozen-embedding multi-hop traces. See run_accel.py.
 - **Optional original paper integration**: integrate_pointer.py and
-  run_sparse_model.py compare original pdg.py vs sparse P/Q/R internal
+  run_sparse_model.py compare original pdg.py vs block/hash sparse P/Q/R internal
   updates with identical training, both seeds. Other Transformer heads
   remain DENSE, so no model-wide speed/VRAM claim.
 - **All equations, caveats, benchmark rules**: [ACCEL_METHOD.md](ACCEL_METHOD.md).
