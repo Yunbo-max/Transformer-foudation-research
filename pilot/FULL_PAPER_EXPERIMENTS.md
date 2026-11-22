@@ -1,0 +1,33 @@
+# Identity + Pointer Doubling / Sparse Pointer / Online Jump Cache — FULL PAPER EXPERIMENT PROTOCOL (2026-11-22)
+
+STATUS: FULL EXPERIMENT DESIGN, NOT AN EXECUTABLE FULL-SCALE SYSTEM. Sparse reference kernels are PyTorch-only; current Cache is SYMBOLIC and disconnected from real cross-query neural inference. Current dense ordinary attention/no-backtrack still exists. Synthetic 75-step coauthor replication cannot substantiate sparse system speedup or random-order generalization.
+
+## Closest published standards
+- Transformers, Parallel Computation, and Logarithmic Depth (ICML 2024), Sanford/Hsu/Telgarsky: theoretical logarithmic depth; pointer doubling is not new.
+- Understanding Transformer Reasoning Capabilities via Graph Algorithms (NeurIPS 2024), Sanford et al.: GraphQA and structured reasoning.
+- Attention with Routed-Memory for Learnable Sparse Control (ICML 2026): real cache/prefill, memory capacity and accuracy/latency tradeoffs.
+- AttentionIndex (arxiv 2611.02508): causal IVF sparse retrieval requires actual routing cost and long-context quality measured, not just score-pair counting.
+- RULER 13 tasks and BABILong 20 tasks for real generalization.
+
+## Complete 3-seed training matrix
+- 340M decoder, 20B total tokens (declare, archive and freeze e.g. 80% FineWeb-Edu + 20% independently generated chain/graph token mixtures), 4K context: 4 arms x 3 seeds = 12 trainings: tuned normal Transformer, original dense coauthor identity+pointer-doubling, block sparse pointer, identity-hash sparse pointer. Count model params/FLOPs fairly. No future information leakage into causal routing, no hidden oracle shortcut.
+- 1.3B decoder, 40B same-proportion held-out-compatible token mix, 4K context: 2 best architecture arms x 3 seeds = 6 trainings: dense pointer and strongest real sparse implementation; if head-to-head original vs regular Transformer is primary, include that full additional control at the same scale (requiring 3 more trainings).
+- Cache and Multi-Level Utility are INFERENCE policies over the SAME trained model, not additional model training by default; retain 3 independent model seeds, five workload traces each, matched cache memory budget in physical bytes not slot count. Must implement actual multiquery pointer-state reuse and cache invalidation rather than solely node->node integer graph simulation.
+
+## Full evaluation
+1. STRUCTURAL correctness: held-out graphs with 16/64/256 nodes, hop lengths 1/2/4/8/16/32, reverse/forward/random/mixed fact order, unique/duplicated keys, distractors, and chains not observed in training. At least 2,000 held-out instances for each preregistered PRIMARY structure/length cell per training seed; report per-hop and order; no train/test structural reuse. Include adversarial cyclic chains and source-key aliases.
+2. External tests: official RULER multi-hop/variable-tracing at 4K/8K/16K/32K (500 per official task-length plus 2,000 on priority tracing cells), BABILong QA1-QA5 with official 1,000 cases each length (2K-32K), GraphQA held-out split, plus real next-token held-out NLL >=20M tokens. Ensure token budget and prefix attention assumptions stated.
+3. Independent sparse factor: native FULL dense pointer vs dense-topK (candidate count equal but FULL score), causal block routing, identity-hash sparse, identical no-backtrack and gating; measure candidate recall, EXACT answer, total GPU FLOPs, router/index build cost, gather time, real GPU prefill latency and peak VRAM.
+4. Independent cache factor: no cache vs LRU/LFU/random/level-LRU vs Multi-Level Utility at 12.5/25/50% IDENTICAL real bytes; 0/1/10% fact edits and time-shifted hot/cold popularity; repeat Q=1/8/64/512 queries on one frozen prefix. Measure strict correctness after edits, cache hits, cache metadata+VRAM, prefix reuse, speed and recomputation. No reuse when prefix or tokenization changes silently.
+5. CROSSED: dense/block/hash x none/utility, plus utility vs LRU/LFU in each sparse arm, three trained seeds and five evaluation traces. Report both pointer-only and whole-model prefill/decode speed; plain Transformer heads remain dense unless explicitly optimized. Latency benchmark lengths 2K/4K/8K/16K/32K/64K, batch 1/4/16, 20 warm-up + 100 measured iterations (or all if too long), median and P95, actual peak CUDA VRAM; record OOM failures rather than censoring.
+6. Order-agnostic failure: original causal pointer doubling is NOT a solution to arbitrary forward/random dependency order. If model cannot pass this condition, state limitation; a prefix encoder/multiple-pass solution is a NEW architecture/compute regime and must have matched explicit-pass baselines.
+
+## Non-negotiable rules (full-paper, not feasibility screening)
+- Minimum THREE independently initialized TRAINING runs for EVERY main result, paired seeds {11,22,33} across arms with identical frozen data/order, tokenizer, optimizer family, train tokens and parameter budget. Report all three values, mean, standard deviation; preserve seeds and checkpoints. A bootstrap over questions NEVER substitutes for training seeds.
+- Pre-register a single primary metric and contrasts. Freeze train/val/test disjointness and test prompts before running. Validation selects hyperparameters (per-arm equal tuning budget), never test. Report natural-distribution scores AND hard conditional groups; no post-hoc selective tables.
+- Synthetic benchmark generators must use independently held-out graph instances/keys and fixed generation seeds common across methods; report sample counts in every table. Two-sided paired bootstrap on test instances (cluster by document/graph), seed-level variability separately, and appropriate multiplicity correction for many tests.
+- Log wall clock, throughput, actual peak GPU allocated/reserved VRAM, FLOPs including routing/index construction, host RAM, model size, accuracy/NLL and checkpoints. Run on real NVIDIA GPUs. No CPU/symbolic cached-byte or pair-count proxy can be reported as measured GPU speedup.
+- Use full training, never tiny 50-step or 400-step runs for claims. All stated experiments below are PLANNED and NOT executable by the old pilot scripts as-is. The repository's existing developer runner is not a paper-scale trainer.
+
+## Resource calculation
+At an assumed sustained 200TFLOP/s H100: 340M/20B ~56.7 h/run x 12 ~680 GPUh; 1.3B/40B ~433h/run x 6 ~2600 GPUh; ideal core training ~3280 H100 GPUh. Real routing/long context, kernel inefficiency, full test runs, cache benchmarking and any additional architecture controls are EXTRA. 80-96GB VRAM, >=128GB CPU RAM, 2TB+ scratch recommended. Never use scalar symbolic edge-cache bytes as GPU VRAM measurements.
