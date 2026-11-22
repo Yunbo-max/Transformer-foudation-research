@@ -1,30 +1,36 @@
-# Predicted-Skip on GDN-2 — FULL PAPER EXPERIMENT PROTOCOL (2026-11-22)
+# Predicted-Skip — ACTIVE SMALL-SCALE FULL-PRETRAINING STUDY (2026-11-22)
 
-STATUS: COMMITTED DESIGN ONLY; the existing small developer script, unverified official-kernel parity, and current diagnostic are NOT paper-scale training/evaluation. Never claim skip gate saves GPU compute unless actual kernels skip real computation.
+**SCOPE LOCK:** matched 340M decoder, 20B FineWeb-Edu training tokens, 4096-token training context, **ONE full run/arm (seed 42)**. 1.3B/100B study DEFERRED. This is paper-standard FULL training, not 3-hour pilot. Current source-reviewed reference code and official-kernel parity adapter are NOT yet validated at full size.
 
-## Reference standard
-- Official NVlabs/GatedDeltaNet-2 (arxiv 2605.22791): 1.3B / 100B FineWeb-Edu tokens, 4K input, AdamW peak LR 4e-4, 0.5M-token global batch, warmup 1B tokens, RULER + real retrieval + commonsense.
-- QED (arxiv 2608.13668) is a direct recent query-informed memory-update alternative, 340M/15B. Include at matched budget where the architecture permits.
-- Original Vuk Rosic Predicted-Skip includes both write-only and joint erase/write; those are NOT newly invented in this Wuke code. The research question is faithful, useful transfer to official GDN-2.
+## Closest research standards
+- Official NVIDIA GDN-2 (arxiv 2605.22791) has 1.3B/100B, 4K and strong downstream comparisons.
+- QED (arxiv 2608.13668) studies query-derived forgetting at 340M/15B.
+- Original Vuk Rosic predicted skip already tests write-only and joint erase/write; this branch tests a GDN-2-specific use, not an assertion of inventing joint suppression.
 
-## Full training matrix (one complete run per configuration)
-- 340M, 20B tokens, 4K sequence, matched training shards: 5 arms x 1 run = 5 trainings: official GDN-2 no skip, skip WRITE only, skip JOINT erase/write, shuffled previous-query predictor, current-key/read control. Add a source-faithful original Predicted-Skip and QED comparison as distinct, documented comparator if exact architecture normalization is possible; never label incompatible numbers apples-to-apples.
-- 1.3B, 100B tokens, 4K sequence: 3 arms x 1 run = 3 trainings: GDN-2, write-only, joint. Fixed same tokenizer, optimizer recipe, gradients, data order and compute budget.
-- VALIDATE official CUDA parity before training: compare unguarded and native beta guard, forward outputs, final states, Q/K/V gradients, all parameter gradients, chunk start snapshots; train/eval mixed-precision behavior must match. Unit tests are a necessary prerequisite, not sufficient evidence.
+## EXACT full-training matrix — 5 jobs
+All 340M, 20B, 4K, identical data order and matched architecture/optimizer schedule, seed 42:
+1. Official GDN-2 (no skip)
+2. Previous-query Write-Only Skip
+3. Previous-query Joint Erase/Write Skip
+4. Shuffled previous-query read (negative control)
+5. Current-key/read control (information and extra-compute control)
+Optional original coauthor/QED source-faithful experiments are NOT included in the five-job total; compare existing published results only when settings are explicitly labeled incomparable.
 
-## Evaluations at EVERY completed checkpoint
-1. Natural held-out next-token NLL (>=20M nonoverlapping tokens); WikiText-103, LAMBADA, HellaSwag, ARC-C/E, PIQA, BoolQ, OpenBookQA and native real-world retrieval (SWDE, SQuAD, FDA, TriviaQA, NQ, DROP).
-2. RULER 13 tasks x 4K/8K/16K/32K/64K where viable, official standard 500 test examples per task-length, PLUS >=2,000 each for preregistered S-NIAH-2/3, MK-NIAH and tracing critical settings.
-3. Mechanism-specific tests: old-fact retention, answer replay/re-encoding, new-key/same-value alias, same-key replacement, changed answer, hot/cold skew, nonstationary topic shift, unrelated distractors. >=2,000 genuinely held-out sequences PER main condition and per model checkpoint, never training contamination. Track false-skip on necessary association writes, edit suppression fraction and exact conditional accuracy, not only overall NLL.
-4. Ablations: write-only vs joint, shuffled previous-query vs current query, native beta guard vs raw (separate configuration), gamma/threshold strength, boundary-state detachment, chunk size, long vs short contextual recurrence. Matched LR tuning for all arms, no cherry-picked gamma.
-5. Real throughput: compare official GDN-2 kernel and our complete official-backend wrapper for training tokens/sec, prefill/decode token/sec, actual CUDA memory, synchronization, extra state reads, additional kernel calls at 4K-64K. A SOFT gate not skipping work is not a speedup.
+**Preflight not an experiment/pilot:** validate original NVlabs GDN-2 parity (raw/native beta guard), all Q/K/V and parameter gradients, final states, chunk-boundary state reads, mixed precision and inference/training correctness. If parity fails do not train and do not silently substitute the unfused reference operator.
 
-## Full-paper controls (single-pretraining-run protocol, 2026-11-22)
-- Use ONE FULLY TRAINED checkpoint per model-size/method/ablation cell (fixed seed=42). Pair arms via identical tokenizer, initial shared weights where tensor structures allow, shuffled data ordering, train tokens, training schedule, optimizer and documented compute budget. Record the seed, dataset manifest, source commit, config and checkpoints. Describe results honestly as single-training-run evidence; no across-training-seed standard deviation or robustness claim.
-- Pre-register a single primary metric and contrasts. Freeze train/val/test disjointness and test prompts before running. Validation selects hyperparameters (per-arm equal tuning budget), never test. Report natural-distribution scores AND hard conditional groups; no post-hoc selective tables.
-- Use large independently held-out sets and identical deterministic test prompts across arms. Synthetic generators must have disjoint training/test graph structures and keys. Report sample counts, paired confidence intervals over held-out TEST examples (cluster by document/graph), and multiplicity-aware analyses for many tests. These quantify test sampling uncertainty ONLY, NOT variability between independently trained checkpoints.
-- Log wall clock, throughput, actual peak GPU allocated/reserved VRAM, FLOPs including routing/index construction, host RAM, model size, accuracy/NLL and checkpoints. Run on real NVIDIA GPUs. No CPU/symbolic cached-byte or pair-count proxy can be reported as measured GPU speedup.
-- Use full training, never tiny 50-step or 400-step runs for claims. All stated experiments below are PLANNED and NOT executable by the old pilot scripts as-is. The repository's existing developer runner is not a paper-scale trainer.
+## Formal evaluations for EACH of the 5 trained checkpoints
+- **Primary:** old fact retention after answers re-enter the stream, together with correct necessary NEW association/alias/overwriting writes. 2,000 independently held-out sequences per predeclared key scenario; quantify false skip, suppression frequency, new-key/same-value, same-key replacement and old/new NLL and accuracy.
+- **Natural text:** FineWeb-Edu held-out NLL >=20M disjoint tokens; WikiText-103, LAMBADA, HellaSwag, ARC-E/C, PIQA, BoolQ, OpenBookQA, retrieval QA with SQuAD/TriviaQA/NQ/DROP/FDA under matching conditions.
+- **Long-context:** official RULER 13 tasks at 4K/8K/16K/32K with 500 official items per task/length when feasible, and 2,000 additional independently held-out high-priority NIAH/trace examples at target lengths. 64K is conditional on memory/kernel, not guaranteed; record length failures.
+- **Mechanism:** compare matched 5 trained rows; log gate rho by event, guard-induced differences, behavior under hot/cold drift, valid association edits and context size. Additional gamma/stop-gradient retraining studies beyond these 5 cells are deferred, not hidden in resource totals.
+- **Efficiency:** measure actual official-backend 340M forward/backward training tokens/sec, prefill/decode wall latency, VRAM allocated/reserved and extra state read/kernel launches. A soft skip that still performs full compute cannot be claimed as GPU FLOPs saved.
 
-## Resource calculation
-At hypothetical 200 TFLOP/s sustained H100 effective compute, 340M/20B = 56.7 h/run and 1.3B/100B = 1083 h/run, giving (5*56.7)+(3*1083) ~3,530 H100 GPUh BEFORE actual implementation overhead, kernel validation, long-context evaluation, tuning and failures. 80GB H100 or 96GB NVIDIA GPU per full-scale worker; 128GB+ CPU RAM, fast sharded data, multi-TB scratch.
+## Non-negotiable execution and evaluation rules
+- This is **complete small-scale pretraining**, not 50/400-step pilot: actually consume the declared token budget and save loss curves/checkpoints. One training seed (42) for each arm. Pair dataset shards, data order, tokenizer, initialization of comparable tensor shapes, token budget, architecture width/parameter count, optimizer/schedule and compute reporting. Never fabricate between-training-seed variance.
+- Reserve validation for equal-budget hyperparameter selection BEFORE fixed final tests; define and freeze primary metric, held-out corpora, prompts and success criteria. Report all baselines, even worse ones. Held-out item bootstrap or document-cluster bootstrap concerns TEST sample uncertainty only; it does not establish training-seed robustness.
+- Each official benchmark must use the official prompt/evaluation code and labeled native sample counts; custom supplements are reported in separate columns. Disjoint tokenizer train/test corpora; for synthetic graph tasks disjoint instances, held-out key inventories and graph structures. Avoid contamination.
+- Report full-training wall time, effective tokens/sec, FLOPs inclusive of extra operators, model parameters, peak GPU **allocated/reserved** VRAM, host RAM, checkpoint footprints, prefill/decode median/P95 and test accuracy/NLL. All data pipelines must be sharded and reproducible.
+- All rows below are **PLANNED**. Existing pilot scripts **DO NOT** implement the 125M/340M 5B/20B full-scale training pipelines. No complete GPU result is claimed. This stage has one model size only; larger scales and any extra training-required sensitivities are **DEFERRED**, not silently included in the time total.
+
+## H100 80GB budget (estimated, not benchmarked)
+340M/20B ~56.7 theoretical H100 GPUh/run at assumed 200TFLOP/s; five full jobs = **~283 ideal H100 GPUh** core. Budget **~480–1,200 H100 GPUh** including full validation and uncertainty in actual sustained throughput, conditional on official kernel integration. 80GB GPU, >=128GB RAM, ~1TB fast scratch/streamed data. Excludes full LR tuning and deferred 1.3B study.
