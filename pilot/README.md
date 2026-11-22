@@ -66,8 +66,7 @@ existing effective output rows; current logits are unchanged (asserted).
 Primary: held-out overall NLL and NLL excluding UNK, frequency-conditioned
 NLL (1–9 / 10–31 / 32–99 hits), cluster sizes, reliable-word share,
 directional conflict diagnostic, wall-clock. All baseline LR/schedules
-match. Passing proxy-only is NEVER a GO. Full real-text replication needs
-three or more paired seeds and a larger vocabulary, not this 3h screen.
+match. Passing proxy-only is NEVER a GO. For the current full-paper study, train each configuration once with a larger authentic vocabulary and evaluate on large, independent held-out corpora; this 3h legacy runner does not implement that study.
 
 Reports: .pilot_workspace_rare_v3/reports/report.json and decision.json,
 with individual stdout/stderr files. The Linux launcher is wall-time bounded
