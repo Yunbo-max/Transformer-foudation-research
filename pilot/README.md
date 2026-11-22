@@ -1,3 +1,6 @@
+> **Paper-level experiments (3 seeds, comparable published training budgets):** see [FULL_PAPER_EXPERIMENTS.md](FULL_PAPER_EXPERIMENTS.md).
+> This is a complete research protocol, **not yet a runnable paper-scale training pipeline**. Existing short-run scripts do not implement it.
+
 # Wuke Candidate 3 — Historical Gradient Geometry for Shared LM Heads
 
 **Research status (2026-11-22)**: algorithm + tests pushed to this branch.
