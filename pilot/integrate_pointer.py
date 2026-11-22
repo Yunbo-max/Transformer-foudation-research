@@ -70,4 +70,9 @@ def patch_pdg(path):
     source=source[:i]+sparse+textwrap.indent(old_body,"    ")+source[j:]
     if 'elif a.ptr in (1, 3, 4, 5, 9, 10, 11):' not in source:
         raise AssertionError("original fallback missing")
+    record='    res["steps_run"] = step + 1'
+    if source.count(record)!=1:
+        raise RuntimeError("pinned pdg.py result writer changed")
+    source=source.replace(record,record+'\n    if a.wuke_sparse_mode == "block":\n'
+        '        res["wuke_pointer_stats"]=getattr(m,"wuke_stats",{})',1)
     path.write_text(source)
