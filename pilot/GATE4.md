@@ -53,12 +53,15 @@ Current pilot (code already committed in run.py):
 
 Log/compare: held-out NTP NLL, loss spikes, divergence, LR multiplier trace,
 adaptation/freeze time (must add explicit freeze-step logging before a
-publication claim), run seconds, and sensitivity to 10x-low / 10x-high starts.
+publication claim), run seconds. The PRESENT runner tests a high initial rate of 0.05 and a
+three-rate fixed sweep; a separate 10x-low initial-rate test is PLANNED,
+not yet wired into the runner.
 
 Do not claim a GO from a single easy model: require both hard configuration
 seeds to improve 30%-hold by 0.005 nats and lie within 0.006 of the best
-three-rate fixed baseline; additionally check confidence method against the
-2-sigma post-hold baseline. Synthetic-only wins remain INCONCLUSIVE.
+three-rate fixed baseline; additionally check confidence method against the 2-sigma post-hold baseline (>=0.002 nats
+better is used as a conservative screen in the current runner).
+Synthetic-only wins remain INCONCLUSIVE.
 
 ## Main research decision
 The published adaptive optimizer literature is CROWDED. Confidence-hold
