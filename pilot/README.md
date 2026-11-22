@@ -1,4 +1,4 @@
-> **Paper-level experiments (3 seeds, comparable published training budgets):** see [FULL_PAPER_EXPERIMENTS.md](FULL_PAPER_EXPERIMENTS.md).
+> **Paper-level experiments (one full training run per configuration, comparable published training budgets):** see [FULL_PAPER_EXPERIMENTS.md](FULL_PAPER_EXPERIMENTS.md).
 > This is a complete research protocol, **not yet a runnable paper-scale training pipeline**. Existing short-run scripts do not implement it.
 
 # Predicted-Skip on channel-wise GDN-2
