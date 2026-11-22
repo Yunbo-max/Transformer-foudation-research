@@ -100,7 +100,33 @@ GPU and library integration are NOT verified in this authoring session.
 The GNU timeout launcher caps the WHOLE attempt to 3h, including the
 pinned source clone. Results go in ignored .pilot_workspace_pointer_* trees.
 
-## 6. Gate
+## 6. Local CPU proxy observations (NOT official GPU results)
+
+Using the standalone PyTorch/reference Python algorithms in this research
+session (seed 11, d=32, N=512, block_size=16, 2 routed blocks, 8 hash bits,
+2 hash probes, candidate bucket 32, local window 8), the measured
+synthetic Identity needle accuracy / exact QK comparison pairs were:
+
+| Sparse mode | Needle accuracy | Exact QK pairs |
+| --- | ---: | ---: |
+| Dense | 1.000 | 262,144 |
+| Block Mean | 0.654 | 19,968 |
+| Hash | 1.000 | 5,740 |
+
+These are ONE-SEED controlled synthetic findings, not trained multi-hop
+coauthor accuracy. CPU operator latency for Hash was WORSE than dense.
+No full-model or actual GPU memory/latency improvement is established.
+
+On a deliberately harder cold/hot mixed online trace with 1024 nodes,
+512 queries and capacity 128 slots, this untrained Utility admission
+policy saved ~55.0% of symbolic work, whereas LFU saved ~57.4%.
+Thus our Utility variant does NOT yet beat strong baselines, and its
+heuristic should not be claimed as successful. The next research
+iteration must improve this comparison *without tuning on held-out
+evaluation traces*. The code includes the harder cold-request mixture.
+
+## 7. Acceptance gate
+
 
 The new mechanism is research-worthy only if: (i) model sparse Pointer
 accuracy remains within 3 percentage points of dense on both paired
