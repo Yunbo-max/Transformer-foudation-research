@@ -1,51 +1,106 @@
 {
-  "name": "Dynamic Shared LM Output Vectors",
-  "model": 125000000,
-  "tokens": 5000000000,
-  "context": 2048,
-  "data": {
-    "source": "FineWeb-Edu",
-    "vocab": "Full GPT-2 50257; no artificial UNK",
-    "shard_manifest": "prepare and freeze shared actual 5B-token training manifest; not bundled"
-  },
-  "arms": [
-    "tuned_adam_eps",
-    "fixed_random",
-    "fixed_frequency",
-    "original_dynamic_weight_kmeans",
-    "full_gradient_ema_kmeans",
-    "positive_gradient_direction",
-    "positive_gradient_direction_magnitude",
-    "syntactic_morphological_smoothing"
-  ],
-  "eval": [
-    "heldout_fineweb_50m_tokens",
-    "two_ood_text_corpora",
-    "blimp_official_67_tasks",
-    "rare_token_stratified_heldout_2000_types_target_10_contexts_each",
-    "folded_lm_head_latency_and_vram"
-  ],
-  "ideal_h100_per_arm": 5.2,
-  "estimated_total_h100_hours": [
-    125,
-    630
-  ],
-  "resources": {
-    "vram_gb": 24,
-    "host_ram_gb": 64,
-    "workspace_tb": 0.5
-  },
   "version": "2026-11-22",
-  "stage": "active_small_scale_full_training",
-  "implementation_status": "PLANNED_CONFIGURATION_ONLY_FULL_SCALE_TRAINER_AND_NATIVE_EVAL_NOT_YET_IMPLEMENTED",
-  "seeds": [
-    42
-  ],
-  "one_checkpoint_per_arm": true,
-  "training_job_count": 8,
+  "name": "Dynamic Shared LM Output Vectors",
+  "stage": "active_lean_full_training_design",
+  "main_model_parameters": 125000000,
+  "main_training_tokens_per_arm": 5000000000,
+  "context_length": 2048,
+  "train_seed": 42,
   "train_from_scratch": true,
-  "requires_full_training_tokens": true,
-  "large_model_followup": "deferred_not_part_of_current_experiments",
-  "timing": "H100 figures unmeasured; GPU hours include wide engineering + evaluation range",
-  "design_document": "pilot/FULL_PAPER_EXPERIMENTS.md"
+  "main_jobs": [
+    {
+      "key": "tuned_output_adam_epsilon",
+      "role": "baseline",
+      "why": "strong cheap optimizer-level comparator",
+      "model_parameters": 125000000,
+      "training_tokens": 5000000000,
+      "training_seed": 42,
+      "context": 2048,
+      "checkpoint_tokens": [
+        2000000000,
+        5000000000
+      ]
+    },
+    {
+      "key": "original_dynamic_weight_kmeans",
+      "role": "baseline",
+      "why": "Vuk Rosic existing function-preserving additive shared LM output head",
+      "model_parameters": 125000000,
+      "training_tokens": 5000000000,
+      "training_seed": 42,
+      "context": 2048,
+      "checkpoint_tokens": [
+        2000000000,
+        5000000000
+      ]
+    },
+    {
+      "key": "syntactic_smoothing",
+      "role": "baseline",
+      "why": "EMNLP 2024 supervised syntax-neighbour signal sharing comparator",
+      "model_parameters": 125000000,
+      "training_tokens": 5000000000,
+      "training_seed": 42,
+      "context": 2048,
+      "checkpoint_tokens": [
+        2000000000,
+        5000000000
+      ]
+    },
+    {
+      "key": "positive_target_gradient_direction_magnitude",
+      "role": "ours",
+      "why": "historical positive-target gradient-based dynamic groups with direction plus calibrated magnitude",
+      "model_parameters": 125000000,
+      "training_tokens": 5000000000,
+      "training_seed": 42,
+      "context": 2048,
+      "checkpoint_tokens": [
+        2000000000,
+        5000000000
+      ]
+    }
+  ],
+  "short_ablation_jobs": [
+    {
+      "key": "gradient_direction_only",
+      "tokens": 1000000000,
+      "reference": "positive_target_gradient_direction_magnitude",
+      "why": "does direction add the gain without gradient magnitude?",
+      "training_seed": 42,
+      "model_parameters": 125000000,
+      "context": 2048,
+      "match_main_checkpoints_at_equal_consumed_tokens": true,
+      "keep_main_full_length_lr_schedule": true
+    },
+    {
+      "key": "optimizer_reset_control",
+      "tokens": 1000000000,
+      "reference": "positive_target_gradient_direction_magnitude",
+      "why": "rule out Adam-moment reset / regroup frequency artifact",
+      "training_seed": 42,
+      "model_parameters": 125000000,
+      "context": 2048,
+      "match_main_checkpoints_at_equal_consumed_tokens": true,
+      "keep_main_full_length_lr_schedule": true
+    }
+  ],
+  "inference_only": [],
+  "evaluations": [
+    "PRIMARY: independent FineWeb-Edu held-out next-token NLL >=50M tokens excluding no real GPT-2 vocabulary rows; preserve all tokens and report frequency-bin conditional NLL and common-token regression",
+    "At least two held-out out-of-domain text corpora and a genuine low-frequency-token stratified challenge where actual eligible token counts and context coverage are disclosed",
+    "Official BLiMP 67 tasks (typically 1,000 pairs each), plus LAMBADA/ARC and relevant frequency bias/anisotropy",
+    "Monitor grouping costs, assigned frequencies/cluster members, optimizer state effects, folded-out inference throughput, train throughput/VRAM"
+  ],
+  "reference_notes": [
+    "Original dynamic weight kmeans/additive output row is Vuk's work: our hypothesis is gradient-based grouping, not the additive sharing itself.",
+    "Syntactic Smoothing EMNLP 2024: https://aclanthology.org/2024.emnlp-main.344/ ; if supervision/architecture cannot be matched, label as distinct recipe and do not assert exact parameter/compute fairness.",
+    "Extra vocab size/tied head/batch/K sweeps deferred; no 350M large-scale run now."
+  ],
+  "training_main_count": 4,
+  "training_short_count": 2,
+  "total_train_jobs": 6,
+  "token_read_volume": 22000000000,
+  "estimated_ideal_h100_hours": 22.916666666666668,
+  "implementation_status": "DESIGN_ONLY_FULL_TRAINER_KERNEL_DATA_EVAL_NOT_YET_READY"
 }
