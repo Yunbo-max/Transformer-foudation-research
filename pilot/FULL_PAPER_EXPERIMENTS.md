@@ -1,32 +1,33 @@
-# Identity + Pointer Doubling — ACTIVE SMALL-SCALE FULL-PRETRAINING STUDY (2026-11-22)
+# Identity + Pointer Doubling — LEAN FORMAL SMALL-SCALE STUDY (2026-11-22)
 
-**SCOPE LOCK:** 340M decoder, 20B training tokens, 4096-token train context, **ONE full train/architecture (seed 42)**. No 1.3B/40B large-scale training now. Proposed 80% natural FineWeb-Edu + 20% generated multi-hop/graph training (train templates/keys disjoint from all evaluation graphs). Current short pdg.py and symbolic JumpCache are NOT runnable whole-model systems.
+**ACTIVE:** 340M decoder, 20B total train tokens/model, 4K context, seed 42; only 3 matched baselines + our model, 4 FULL pretrainings. Additional training ablation: only 1 × 2B tokens. No 1.3B experiment; no 3-seed repeat. This document specifies the experiment but the old 3h pilot cannot run it.
 
-## Closest standards and novelty boundaries
-Sanford/Hsu/Telgarsky ICML 2024 and other graph-theory works already cover logarithmic-depth pointer composition; original coauthor 04+05 already implements identity matching, pointer doubling, no-backtrack and lifting. Wuke hypotheses are efficient causally sparse Pointer routing and **real** online multi-level computed jump-state caching; hash/LSH itself is prior art. Do not claim generic causal pointer doubling is order-agnostic.
+## Main 4 full 20B-token trainings (3 baselines + 1 ours)
+1. **Transformer:** native tuned dense FlashAttention Transformer, exact total token budget and comparable parameter/FLOP count.
+2. **Original Dense Pointer:** coauthor original Identity + Pointer Doubling + no-backtrack/lifting (not Wuke novelty).
+3. **Block Sparse Pointer:** original Pointer with completed-block causal sparse routing and exact QK/no-backtrack refinement.
+4. **Identity-Hash Sparse Pointer (ours):** causal identity-aware hash routing, full original Pointer learning; Multi-Level Jump Utility evaluated at inference without retraining.
 
-## EXACT full-training matrix — 4 jobs
-All 340M / 20B / 4K / one seed 42, with model params, actual FLOPs and train data mixture reported:
-1. Standard tuned dense Transformer
-2. Original coauthor Dense Identity + Pointer Doubling
-3. Coauthor Pointer + causal block-routed Sparse Pointer
-4. Coauthor Pointer + identity-aware hash-routed Sparse Pointer
-Same no-backtrack and doubling controls except where operator sparse candidates differ; preserve causality. Dense-topK as non-trained inference diagnostic (computes dense scores first, never billed sparse). New order-agnostic encoder/passes are not implemented and outside this four-job scope.
+Data: freeze shared 80% real FineWeb-Edu + 20% train-only graph/chain tokens (20B total per arm). Document tokenization, templates, token distribution, matched initialization where compatible, optimizer schedule, model params and FLOPs. Use independent held-out graph families and identifiers, not train/test templated copies.
 
-## Full formal testing of all trained checkpoints (not proxy)
-- **Primary:** final-answer exact accuracy on independently held-out graph families. Number of nodes 16/64/256; hops 1/2/4/8/16/32; reverse/forward/random/mixed order; unique vs duplicated keys; distractors and cycles. >=2,000 independent held-out examples per PRIORITIZED order/hop/difficulty cell, with disjoint key inventories and graph instances. Report failed forward/random order rather than omit it.
-- **External:** official RULER tracing/aggregation/multi-hop across 4K/8K/16K/32K (500 native samples/task/length where supported), independent 2,000 additional examples for priority tracing; native BABILong 1,000-task split by 2K-32K where benchmark provides it; held-out GraphQA; natural held-out NLL >=20M tokens.
-- **Sparse factor:** compare dense vs block vs hash on trained models, and dense-topK inference diagnostic. Measure candidate recall, exact answers, routing/index/gather FLOPs/costs, actual whole-model wall latency, training/inference peak GPU memory, not only pointer score-pair counts.
-- **Cache factor (EVALUATION ONLY, no extra training):** on same stored checkpoint and same prefix, implement genuinely reusable multi-query neural jump states; compare none/LRU/LFU/random/level-LRU/Multi-Level Utility at matched **physical bytes** (12.5/25/50% of a declared full-state reference). FIVE independent request traces per policy with 0/1/10% edits, Q=1/8/64/512. Verify correctness after edits and include metadata, evictions, prefill and decode in memory/time.
-- **Crossed factor:** dense/block/hash × cache none/utility, plus strongest baseline LRU and LFU in every sparse arm. Record within-trace paired accuracy/time/cost, model-level speedups; context 2K/4K/8K/16K/32K/64K and batch 1/4/16 as feasible (explicit OOM and regression reports). 20 warmups +100 timed repetitions per supported hardware configuration. Multiquery prefix reuse must not reuse stale states after corpus/prefix change.
-- **Training scope:** 4 trainings only. Cache policies do NOT train separate LM checkpoints. Any new order-agnostic architecture, added full-training cache policy, or 1.3B replication is deferred. Existing original attention and residual paths are still dense until truly replaced.
+## ONLY ONE short training ablation: 2B tokens
+- **hash_without_identity_conditioning:** train to 2B with the SAME 20B-model learning-rate schedule and token order, compare its graph/retrieval/quality results ONLY to the main Identity-Hash model checkpoint stored at 2B. Do not compare directly to the final 20B checkpoint and call it an effect of hashing. This measures the early-training identity dependence, NOT full-20B ablation validity.
 
-## Non-negotiable execution and evaluation rules
-- This is **complete small-scale pretraining**, not 50/400-step pilot: actually consume the declared token budget and save loss curves/checkpoints. One training seed (42) for each arm. Pair dataset shards, data order, tokenizer, initialization of comparable tensor shapes, token budget, architecture width/parameter count, optimizer/schedule and compute reporting. Never fabricate between-training-seed variance.
-- Reserve validation for equal-budget hyperparameter selection BEFORE fixed final tests; define and freeze primary metric, held-out corpora, prompts and success criteria. Report all baselines, even worse ones. Held-out item bootstrap or document-cluster bootstrap concerns TEST sample uncertainty only; it does not establish training-seed robustness.
-- Each official benchmark must use the official prompt/evaluation code and labeled native sample counts; custom supplements are reported in separate columns. Disjoint tokenizer train/test corpora; for synthetic graph tasks disjoint instances, held-out key inventories and graph structures. Avoid contamination.
-- Report full-training wall time, effective tokens/sec, FLOPs inclusive of extra operators, model parameters, peak GPU **allocated/reserved** VRAM, host RAM, checkpoint footprints, prefill/decode median/P95 and test accuracy/NLL. All data pipelines must be sharded and reproducible.
-- All rows below are **PLANNED**. Existing pilot scripts **DO NOT** implement the 125M/340M 5B/20B full-scale training pipelines. No complete GPU result is claimed. This stage has one model size only; larger scales and any extra training-required sensitivities are **DEFERRED**, not silently included in the time total.
+## Sparse and online cache are TWO separate factors (cache policies add ZERO LM trainings)
+- **Sparse:** compare full-trained dense, block-sparse and hash-sparse at equal accuracy and real full-model GPU memory/latency; a Dense-TopK score-then-select diagnostic uses the trained dense model without extra training.
+- **Cache:** on the SAME frozen 20B-trained neural checkpoint, compare No-Cache, LRU, LFU and Multi-Level Jump-State Utility. Five independent workload traces per policy, cache budgets 12.5/25/50% in matched ACTUAL resident bytes INCLUDING metadata, and dynamic edit rates 0/1/10% with exact cache invalidation.
+- **Minimum crossed evaluation:** dense vs identity-hash × no-cache/LFU/utility at matched inference memory and answers; retain LRU as a comparator in the cache-only table. No additional full training for combinations. The existing symbolic JumpCache is not a substitute for a real cross-query neural cache.
 
-## H100 80GB resource estimate (not benchmarked)
-340M/20B at an optimistic assumed 200TFLOP/s and 6*P*T gives 56.7 ideal GPUh/job, 4 jobs = **~227 ideal H100 GPUh** core. With unfused sparse indexing, dense remaining heads, long-context inference and cache evaluation, reserve **~480–2,100 H100 GPUh** conditional on an optimized GPU sparse kernel and truly neural cache implementation; otherwise no reliable upper bound. GPU >=80GB and host RAM >=128GB, scratch >=1TB and stream datasets. No large-scale second model included.
+## Formal evaluation, unchanged sample rigor
+- **Primary:** hold out 2,000 independent graph/chain examples per prespecified major difficulty × order/hop condition (1/2/4/8/16/32 hops; reverse/forward/random/mixed; unique/duplicate keys). Include cycles, aliasing and distractors; explicitly report failures under non-reverse order.
+- Standard RULER task-length cells (native 500 each where supported), with 2,000 additional matched independent multi-hop/tracing instances; BABILong native 1,000-question sets when available, GraphQA and held-out real next-token NLL over at least 20M independent tokens.
+- GPU kernel and full-model routing/gather/index build costs, prefill/decode wall-time (median/P95), actual peak VRAM allocated/reserved, throughput and accuracy at 2K/4K/8K/16K/32K (64K if supported). Record OOMs.
+
+## Validity constraints and implementation status
+- Train exactly one FULL run per arm seed=42; keep identical data order and fixed tokenizer, suitable equivalent architecture/model/optimizer budgets, and use validation only for hyperparameters. Save checkpoint at consumed tokens=2B and 20B for all full 20B runs.
+- No claim of seed robustness from test-set bootstrap. Test-set bootstrap with matched held-out examples estimates test sampling variation only.
+- Pointer doubling, no-backtrack, identity matching and LSH are established prior ideas; proposed novelty is the SPECIFIC integration and measured compute-reuse benefit, NOT generic hashing or binary lifting. AttentionIndex (arxiv 2611.02508) and ARM (ICML 2026) are related but not direct fair model baselines without matching architectures/training.
+- Current reference pointer PyTorch operators still leave ordinary Transformer attention dense. Real sparse GPU kernel, 340M trainer, 20B streaming corpus and cross-request neural Jump Cache are NOT implemented. Do not treat old pilot results as formal findings.
+
+## GPU resources (unmeasured planning)
+4 × 340M × 20B plus 1 × 340M × 2B = **82B tokens total read** over the separate training jobs. At a hypothetical sustained H100 200 TFLOP/s and ideal 6PT, ~232.3 H100 core-train hours before routing/index costs, evaluation, reduced utilization or failed runs. True time is unknown until native kernels run. Target >=80GB VRAM, >=128GB host RAM, >=1TB fast workspace. No 1.3B expansion.
