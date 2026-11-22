@@ -124,7 +124,10 @@ def make_trace(num_nodes=2048,num_queries=1024,max_hops=15,seed=19,
     bases=list(nodes)
     def hot(i):
         u=max(1e-9,rng.random())
-        rank=min(num_nodes-1,int(u**(-1.0/max(1e-3,skew))-1))
+        # Mixed hot and cold requests prevent every cache policy tying
+        # trivially on a handful of popular keys.
+        rank=(rng.randrange(num_nodes) if rng.random()<0.35 else
+              min(num_nodes-1,int(u**(-1.0/max(1e-3,skew))-1)))
         return bases[rank if i<int(num_queries*shift_at) else num_nodes-1-rank]
     allowed=[h for h in (1,2,3,5,7,11,15,31,63) if h<=max_hops]
     events=[]
