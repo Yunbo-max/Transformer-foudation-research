@@ -1,3 +1,7 @@
+# Project 11 next-stage novelty gate: [GATE11.md](GATE11.md)
+
+The original reverse-order doubling/no-backtrack/lifting is prior coauthor work. The remaining Wuke research gap is order-agnostic, variable-hop composition, which is **not implemented** here; existing pilot is a stress test only.
+
 # Pilot D — Identity + Pointer Doubling as ONE Paper (<= 3 hours)
 
 Pinned MIT source:
