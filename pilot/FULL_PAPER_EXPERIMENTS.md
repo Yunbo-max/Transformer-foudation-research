@@ -1,36 +1,42 @@
-# Predicted-Skip — ACTIVE SMALL-SCALE FULL-PRETRAINING STUDY (2026-11-22)
+# Predicted-Skip: LOCKED LEAN FULL-TRAINING STUDY (2026-11-22)
 
-**SCOPE LOCK:** matched 340M decoder, 20B FineWeb-Edu training tokens, 4096-token training context, **ONE full run/arm (seed 42)**. 1.3B/100B study DEFERRED. This is paper-standard FULL training, not 3-hour pilot. Current source-reviewed reference code and official-kernel parity adapter are NOT yet validated at full size.
+**ACTIVE:** 340M parameters, 20B full pretraining tokens/arm, context 4096, ONE training seed=42, precisely THREE competitive or mechanistically essential baselines plus ONE proposed method. Main runs are complete formal training, NOT a 3h pilot. All 1.3B and second-scale expansion deferred.
 
-## Closest research standards
-- Official NVIDIA GDN-2 (arxiv 2605.22791) has 1.3B/100B, 4K and strong downstream comparisons.
-- QED (arxiv 2608.13668) studies query-derived forgetting at 340M/15B.
-- Original Vuk Rosic predicted skip already tests write-only and joint erase/write; this branch tests a GDN-2-specific use, not an assertion of inventing joint suppression.
+## Main full training matrix — EXACTLY 4 trained models
+1. official_gdn2 — **BASELINE**: native unmodified GDN-2, essential direct comparator
+2. qed — **BASELINE**: 2026 query-informed interference-erasure SOTA comparator
+3. gdn2_previous_query_write_only — **BASELINE**: closest skip mechanism with value write suppression but no erase scaling
+4. gdn2_previous_query_joint — **OURS**: GDN-2-port of joint erase/write answer feedback, with native guard parity
 
-## EXACT full-training matrix — 5 jobs
-All 340M, 20B, 4K, identical data order and matched architecture/optimizer schedule, seed 42:
-1. Official GDN-2 (no skip)
-2. Previous-query Write-Only Skip
-3. Previous-query Joint Erase/Write Skip
-4. Shuffled previous-query read (negative control)
-5. Current-key/read control (information and extra-compute control)
-Optional original coauthor/QED source-faithful experiments are NOT included in the five-job total; compare existing published results only when settings are explicitly labeled incomparable.
+All arms are train-from-scratch on an identical frozen FineWeb-Edu training stream with matched architecture/parameter budget and fully documented FLOPs. Tune on validation only with equivalent search budget; all four main models consume the FULL 20B tokens. Report source-faithful official protocols and disclose non-identical architecture components. No 4th or 5th baseline implied.
 
-**Preflight not an experiment/pilot:** validate original NVlabs GDN-2 parity (raw/native beta guard), all Q/K/V and parameter gradients, final states, chunk-boundary state reads, mixed precision and inference/training correctness. If parity fails do not train and do not silently substitute the unfused reference operator.
+## Minimal short-budget training ablations — EXACTLY 2 additional jobs
+- previous_query_shuffled_control: 2B TRAIN tokens, compare with `gdn2_previous_query_joint` checkpoint at the same consumed token count; does previous-query information matter beyond extra parameters?.
+- current_key_read_control: 2B TRAIN tokens, compare with `gdn2_previous_query_joint` checkpoint at the same consumed token count; replace previous-query read by current-key feedback.
 
-## Formal evaluations for EACH of the 5 trained checkpoints
-- **Primary:** old fact retention after answers re-enter the stream, together with correct necessary NEW association/alias/overwriting writes. 2,000 independently held-out sequences per predeclared key scenario; quantify false skip, suppression frequency, new-key/same-value, same-key replacement and old/new NLL and accuracy.
-- **Natural text:** FineWeb-Edu held-out NLL >=20M disjoint tokens; WikiText-103, LAMBADA, HellaSwag, ARC-E/C, PIQA, BoolQ, OpenBookQA, retrieval QA with SQuAD/TriviaQA/NQ/DROP/FDA under matching conditions.
-- **Long-context:** official RULER 13 tasks at 4K/8K/16K/32K with 500 official items per task/length when feasible, and 2,000 additional independently held-out high-priority NIAH/trace examples at target lengths. 64K is conditional on memory/kernel, not guaranteed; record length failures.
-- **Mechanism:** compare matched 5 trained rows; log gate rho by event, guard-induced differences, behavior under hot/cold drift, valid association edits and context size. Additional gamma/stop-gradient retraining studies beyond these 5 cells are deferred, not hidden in resource totals.
-- **Efficiency:** measure actual official-backend 340M forward/backward training tokens/sec, prefill/decode wall latency, VRAM allocated/reserved and extra state read/kernel launches. A soft skip that still performs full compute cannot be claimed as GPU FLOPs saved.
+At the designated 1B/2B point, SAVE checkpoints of applicable FULL main arms automatically. Additional ablation training follows the SAME training schedule up to that exact token count; no replacement with shorter cosine. Matched early-step results ONLY: **do not compare an ablation trained for 2B with a 20B final main model and claim the same budget**. The short-budget table explicitly states its shorter-data limitation.
 
-## Non-negotiable execution and evaluation rules
-- This is **complete small-scale pretraining**, not 50/400-step pilot: actually consume the declared token budget and save loss curves/checkpoints. One training seed (42) for each arm. Pair dataset shards, data order, tokenizer, initialization of comparable tensor shapes, token budget, architecture width/parameter count, optimizer/schedule and compute reporting. Never fabricate between-training-seed variance.
-- Reserve validation for equal-budget hyperparameter selection BEFORE fixed final tests; define and freeze primary metric, held-out corpora, prompts and success criteria. Report all baselines, even worse ones. Held-out item bootstrap or document-cluster bootstrap concerns TEST sample uncertainty only; it does not establish training-seed robustness.
-- Each official benchmark must use the official prompt/evaluation code and labeled native sample counts; custom supplements are reported in separate columns. Disjoint tokenizer train/test corpora; for synthetic graph tasks disjoint instances, held-out key inventories and graph structures. Avoid contamination.
-- Report full-training wall time, effective tokens/sec, FLOPs inclusive of extra operators, model parameters, peak GPU **allocated/reserved** VRAM, host RAM, checkpoint footprints, prefill/decode median/P95 and test accuracy/NLL. All data pipelines must be sharded and reproducible.
-- All rows below are **PLANNED**. Existing pilot scripts **DO NOT** implement the 125M/340M 5B/20B full-scale training pipelines. No complete GPU result is claimed. This stage has one model size only; larger scales and any extra training-required sensitivities are **DEFERRED**, not silently included in the time total.
+## Evaluation (no reduction in held-out sample rigor)
+- PRIMARY: old knowledge retention AND new fact plasticity after answer re-entry, 2,000 held-out cases each for overwrite/alias/hot-cold/changed answer; false skip rate and event-conditioned suppression
+- Native FineWeb-Edu NLL >=20M tokens, WikiText-103, LAMBADA, commonsense QA and retrieval tasks with fixed native prompt/eval
+- Native RULER 500 samples per supported task/length 4K-32K plus 2,000 independent priority NIAH/multi-key cases
+- Official NVIDIA GDN-2 forward/backward/guard parity and end-to-end GPU token throughput, prefill/decode latency, allocations, extra kernel work
 
-## H100 80GB budget (estimated, not benchmarked)
-340M/20B ~56.7 theoretical H100 GPUh/run at assumed 200TFLOP/s; five full jobs = **~283 ideal H100 GPUh** core. Budget **~480–1,200 H100 GPUh** including full validation and uncertainty in actual sustained throughput, conditional on official kernel integration. 80GB GPU, >=128GB RAM, ~1TB fast scratch/streamed data. Excludes full LR tuning and deferred 1.3B study.
+## Closest-work and interpretation constraints
+- Vuk Rosic's original Predicted-Skip already includes write and joint erase/write suppression (lpsE=1). The joint mechanism itself is PRIOR ART. A GDN-2 port alone is not established paper-level originality.
+- QED native official release or faithful independent reimplementation must be confirmed. Do not conflate mismatched update rules.
+- Soft skip is not actual reduced FLOPs unless a concrete kernel avoids work.
+- Initial official kernel parity validation must pass before a full run.
+
+## Fixed scientific controls
+- One full training seed 42 per MAIN arm. Within-project arms use matched tokenizer, source sharded train manifest, data order, training token budget, model/optimizer schedule and comparable parameter + training FLOP budget. Run exactly ALL declared main arms; do not omit weak ones.
+- For the limited short training ablations, record and preserve MAIN model checkpoints **after the same 1B/2B number of consumed tokens**. The short ablation uses the identical full-run LR schedule through that token count (not a separately accelerated cosine schedule). Compare with the matched-token MAIN checkpoints, NEVER with MAIN final 5B/20B checkpoints. Short-budget ablations only show early-training mechanism sensitivity; they do not establish the full-budget mechanism in isolation.
+- Validate methods/official kernel and numerical invariants before burning pretraining compute. This is engineering correctness verification, NOT a reduced-data scientific pilot. No numerical training result is currently claimed.
+- For full checkpoints, run official native benchmarks with unmodified evaluation metrics and task-specific sample counts. Use the same held-out prompts/examples across arms; preregister primary metrics. Report test-set paired/bootstrap confidence intervals where appropriate, and explicitly state ONE training seed cannot establish training-seed robustness. Avoid data/test leakage.
+- Measure effective training token throughput, full-model and operator kernel cost, wall time, actual GPU allocated/reserved peak, host RAM, and test accuracy/NLL. Failed/OOM cells stay in results; efficiency claims must be from real GPU, not proxy FLOP counts.
+- IMPORTANT: This file and SMALL_SCALE_STUDY.json are experiment-design artifacts. The legacy 3h scripts do NOT train 125M/340M on 5B/20B tokens, and the needed native training, kernels, datasets and evaluation integration are not yet implemented. No ready-to-run full training is asserted.
+
+## Scope and resources (engineering estimate only)
+- FULL runs: 4 × 20B tokens = 80B consumed tokens. Short ablations: 2B + 2B = 4B. TOTAL 84B token-read volume (may repeat the same data shards across different methods).
+- Theoretical core training H100 GPU hours if (only IF) 6PT FLOPs and sustained 200 TFLOP/s: 238.0h. This IS NOT measured training time, excludes evaluation and any extra routing/matrix compute, and does NOT cap runtime for currently unfused operators.
+- Target VRAM 80GB for 340M methods with custom kernels (output head may use 24–48GB), host RAM 64–128GB, streaming data. Main code requires work before this protocol can execute.
