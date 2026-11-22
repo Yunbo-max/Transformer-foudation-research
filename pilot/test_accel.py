@@ -31,6 +31,19 @@ class SparseTests(unittest.TestCase):
             block_size=4,blocks=2,chunk=5)
         self.assertTrue(torch.allclose(base[:,:13],later[:,:13],atol=1e-6))
 
+    def test_hash_route_is_causal_and_deterministic(self):
+        first,meta=pointer_lookup(self.q,self.k,self.v,mode="hash",
+            hash_bits=6,hash_probes=2,hash_bucket=16,local_window=4,chunk=5)
+        again,_=pointer_lookup(self.q,self.k,self.v,mode="hash",
+            hash_bits=6,hash_probes=2,hash_bucket=16,local_window=4,chunk=5)
+        self.assertTrue(torch.allclose(first,again,atol=1e-6))
+        changed=self.k.detach().clone()
+        changed[:,13:]*=1000
+        after,_=pointer_lookup(self.q,changed,self.v,mode="hash",
+            hash_bits=6,hash_probes=2,hash_bucket=16,local_window=4,chunk=5)
+        self.assertTrue(torch.allclose(first[:,:13],after[:,:13],atol=1e-6))
+        self.assertLess(meta["scoring_pairs"],2*17*17)
+
     def test_gradients_and_nonquadratic_candidate_count(self):
         out,stats=pointer_lookup(self.q,self.k,self.v,mode="block",
             block_size=4,blocks=1,chunk=7)
@@ -71,8 +84,7 @@ class CacheTests(unittest.TestCase):
     def test_crossed_design_runs_four_real_strategies(self):
         rows=crossed_pilot(torch.device("cpu"),10,12,6,4,1,.25)
         self.assertEqual({(r["sparse"],r["cache"]) for r in rows},
-            {("dense","none"),("dense","utility"),
-             ("block","none"),("block","utility")})
+            {(a,b) for a in ("dense","block","hash") for b in ("none","utility")})
         for row in rows:
             self.assertGreaterEqual(row["exact_answer_accuracy"],0.)
             self.assertLessEqual(row["exact_answer_accuracy"],1.)
