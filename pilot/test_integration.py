@@ -33,7 +33,7 @@ class CoauthorSparseAdapterTests(unittest.TestCase):
             patch_pdg(f)
             parsed=f.read_text()
             ast.parse(parsed)
-            self.assertIn('a.wuke_sparse_mode == "block"',parsed)
+            self.assertIn('a.wuke_sparse_mode in ("block","hash")',parsed)
             self.assertIn('elif a.ptr in (1, 3, 4, 5, 9, 10, 11):',parsed)
             self.assertIn('res["wuke_pointer_stats"]',parsed)
             patch_pdg(f)
