@@ -1,0 +1,50 @@
+{
+  "name": "Identity + Pointer Doubling",
+  "model": 340000000,
+  "tokens": 20000000000,
+  "context": 4096,
+  "data": {
+    "source": "FineWeb-Edu + independently generated graph/chain training",
+    "mix_ratio": {
+      "fineweb": 0.8,
+      "graph": 0.2
+    },
+    "shard_manifest": "prepare and freeze same 20B-token 80:20 training mixture and graph template disjointness; not bundled"
+  },
+  "arms": [
+    "tuned_dense_transformer",
+    "original_dense_identity_pointer_doubling",
+    "causal_block_sparse_pointer",
+    "identity_hash_sparse_pointer"
+  ],
+  "eval": [
+    "heldout_graphqa_2000_per_primary_structure_length",
+    "ruler_native_500_per_task_length",
+    "babilong_native_1000_per_available_task_length",
+    "sparse_dense_latency_vram_and_candidate_recall",
+    "online_cache_five_request_traces_per_policy"
+  ],
+  "ideal_h100_per_arm": 56.7,
+  "estimated_total_h100_hours": [
+    480,
+    2100
+  ],
+  "resources": {
+    "vram_gb": 80,
+    "host_ram_gb": 128,
+    "workspace_tb": 1
+  },
+  "version": "2026-11-22",
+  "stage": "active_small_scale_full_training",
+  "implementation_status": "PLANNED_CONFIGURATION_ONLY_FULL_SCALE_TRAINER_AND_NATIVE_EVAL_NOT_YET_IMPLEMENTED",
+  "seeds": [
+    42
+  ],
+  "one_checkpoint_per_arm": true,
+  "training_job_count": 4,
+  "train_from_scratch": true,
+  "requires_full_training_tokens": true,
+  "large_model_followup": "deferred_not_part_of_current_experiments",
+  "timing": "H100 figures unmeasured; GPU hours include wide engineering + evaluation range",
+  "design_document": "pilot/FULL_PAPER_EXPERIMENTS.md"
+}
