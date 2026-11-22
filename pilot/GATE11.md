@@ -5,17 +5,17 @@ unimplemented research option, but it is NOT the active acceleration pilot.
 The active proposal keeps coauthor 04+05 as the novel model foundation,
 and tests TWO separate cost reductions:
 
-**S — Sparse Pointer:** Completed-block content routing of original
+**S — Sparse Pointer:** Completed-block routing and identity-signature hash routing of original
 P/Q/R lookup, versus dense and dense-topk controls. No future-leaking
 centroids; same no-backtrack correction. PyTorch reference operator.
 **C — Online Multi-Level Jump-State Cache:** Cache the 2^level-hop computed
 destinations rather than every token KV. Strong LRU/LFU/random/level-aware
 controls. Multi-Level Jump-State Utility uses past accesses and expected
 recompute cost, not future labels. Updates flush all entries conservatively.
-**S×C — Crossed:** Dense/Sparse × No-Cache/Utility under identical frozen
+**S×C — Crossed:** Dense/Block/Hash × No-Cache/Utility under identical frozen
 neural edge-reader workload. Wrong sparse edges count as real answer errors.
 
-Files: pointer_accel.py, jump_cache.py, run_accel.py, test_accel.py,
+Files: pointer_accel.py, pointer_hash.py, jump_cache.py, run_accel.py, test_accel.py,
 integrate_pointer.py, run_sparse_model.py, run_accel_3h.sh.
 Detailed equations and hard limitations: [ACCEL_METHOD.md](ACCEL_METHOD.md).
 Existing model-runner and original coauthor benchmark remain available.
