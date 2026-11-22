@@ -40,6 +40,8 @@ def main():
     add_seed_flag(path)
     shutil.copyfile(Path(__file__).with_name("pointer_accel.py"),
                     path.with_name("pointer_accel.py"))
+    shutil.copyfile(Path(__file__).with_name("pointer_hash.py"),
+                    path.with_name("pointer_hash.py"))
     patch_pdg(path)
     cases=[]
     for cname,hops,order,fill,dup in CONFIGS:
@@ -56,6 +58,8 @@ def main():
             arms += [(f"block{bs}",["--wuke_sparse_mode","block",
                          "--wuke_bs",a.block_size,"--wuke_blocks",bs])
                      for bs in a.blocks]
+            arms.append(("hash",["--wuke_sparse_mode","hash",
+                                  "--wuke_bs",a.block_size,"--wuke_blocks",2]))
             for name,opts in arms:
                 cases.append(dict(name=f"ptrsp_{cname}_s{seed}_{name}",
                     path="05-attention-pointer-doubling/pdg.py",
@@ -71,9 +75,10 @@ def main():
                 return z.get("record") if z.get("status")=="ok" else None
             dense=get("dense")
             sparse={name:get(f"block{name}") for name in a.blocks}
+            sparse["hash"]=get("hash")
             row=dict(config=cname,seed=seed,
                dense_acc=None if dense is None else float(dense["acc"]),
-               block_acc={str(k):(None if r is None else float(r["acc"]))
+               sparse_acc={str(k):(None if r is None else float(r["acc"]))
                           for k,r in sparse.items()},
                pointer_pairs={str(k):(None if r is None else
                          r.get("wuke_pointer_stats")) for k,r in sparse.items()},
@@ -82,13 +87,13 @@ def main():
                            for k,r in sparse.items()}})
             comparisons.append(row)
     complete=all(r["dense_acc"] is not None and
-                 all(v is not None for v in r["block_acc"].values())
+                 all(v is not None for v in r["sparse_acc"].values())
                  for r in comparisons)
     screen="INCOMPLETE"
     if complete:
         rev=[r for r in comparisons if r["config"]=="reverse7"]
         supported=all(r["dense_acc"]>=.9 and
-            any(v>=r["dense_acc"]-.03 for v in r["block_acc"].values()) for r in rev)
+            any(v>=r["dense_acc"]-.03 for v in r["sparse_acc"].values()) for r in rev)
         screen="SPARSE_POINTER_ACCURACY_FEASIBLE" if supported else "NO_CLEAR_FEASIBILITY"
     summary=dict(screen=screen,comparisons=comparisons,
        warning="Ordinary Transformer attention remains dense. No GPU speedup claim.")
