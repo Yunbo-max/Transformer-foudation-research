@@ -1,4 +1,4 @@
-# Project 11: Sparse Pointer × Online Jump-State Cache
+# Project 11: Sparse Pointer (Block + Identity-Hash) × Online Jump-State Cache
 
 **Status (2026-11-22):** implemented exploratory code, tests and a
 self-contained synthetic simulator. No trained coauthor GPU or RTX benchmark
@@ -23,10 +23,14 @@ This is subquadratic when W scales with sqrt(N), G fixed, Q~N. Block mean
 can miss rare keys: no recall bound is claimed. The reference implementation
 is PyTorch, NOT a fused optimized CUDA kernel.
 
-Controls: (S0) dense; (S-DenseTopK) full-score-then-topk control, which
-still does full quadratic candidate scoring; (S1) true block-routed sparse
-Pointer lookup. Test causal invariance, gradient flow and dense equivalence
-when one local block covers all keys. Source: pointer_accel.py.
+Controls: S0 dense; S-DenseTopK full-score-then-topk (still quadratic);
+S1 completed-block mean routing; S2 fixed random-hyperplane identity-hash
+routing. The latter indexes keys by signed projection bits, probes exact
+and nearby Hamming-one buckets, and refines ONLY causal keys with original
+QK + no-backtrack scores. It never uses future keys to route past queries.
+Hashing is prior-art ANN, not a newly invented scheme. With a soft mixed
+Pointer query the correct signature may be missed: no recall guarantee.
+Code: pointer_accel.py and pointer_hash.py.
 
 ## 2. Online Multi-Level Jump-State Cache
 
@@ -51,12 +55,13 @@ The simulator stores integer destinations, not real GPU KV vectors; it
 reports estimated BF16 state-equivalent bytes *excluding metadata*. Don't
 claim measured VRAM savings from the cache study. Source: jump_cache.py.
 
-## 3. Required 2x2 independent/crossed ablation
+## 3. Required 3x2 independent/crossed ablation
 
 | | No cache | Multi-Level Utility cache |
 |---|---|---|
 | Dense Pointer | S0C0 | S0C1 |
 | Block Sparse Pointer | S1C0 | S1C1 |
+| Identity-Hash Sparse Pointer | S2C0 | S2C1 |
 
 All arms receive identical generated facts and queries. The combined study
 uses a frozen random-embedding Identity-style edge reader, and the Jump
@@ -74,13 +79,13 @@ request popularity and optional edge edits. Source: run_accel.py.
 integrate_pointer.py is a fail-closed patcher for pinned coauthor pdg.py
 (commit d0dc052749a97061f6daa6907371bd0a2ec33405). It changes ONLY
 internal two Pointer heads' P/Q/R reads for --ptr=11 when the new
---wuke_sparse_mode block flag is set. Dense fallback remains intact.
+--wuke_sparse_mode block or hash flag is set. Dense fallback remains intact.
 
 The *ordinary Transformer attention and original dense no-backtrack
 residual attention are NOT sparsified*, so this is an accuracy feasibility
 pilot, NOT a proven full-model CUDA acceleration or memory reduction.
 
-run_sparse_model.py compares original dense vs 2/4 routed blocks at 50
+run_sparse_model.py compares original dense vs block2/block4/hash at 50
 steps, paired seeds 0/1, on reverse7, reverse5, repeated7, random7.
 Records final answer accuracy, runtime and score-pair counts.
 GPU and library integration are NOT verified in this authoring session.
@@ -102,8 +107,8 @@ accuracy remains within 3 percentage points of dense on both paired
 reverse7 seeds, (ii) larger-context *measured* GPU latency and memory improve
 after kernel work, not just theoretical score counts, (iii) utility cache
 beats both LRU and LFU at equal capacity on more than one shifted-query
-distribution, and (iv) S1C1 outperforms S1C0 and S0C1 under a matched
-accuracy and memory budget. Negative results are legitimate; proxy-only
+distribution, and (iv) at least one sparse+cache arm outperforms both single-axis
+alternatives under a matched accuracy and memory budget. Negative results are legitimate; proxy-only
 success is never publication evidence.
 
 ### Prior art and originality
