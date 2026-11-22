@@ -59,7 +59,7 @@ def patch_gradient_regroup(path):
         '            with torch.no_grad():\n'
         '                m.grad_ema.mul_(0.95).add_(m.head.grad.detach(),alpha=0.05)\n'
         '        for o in opts: o.step()')
-    replace_once("        s.Clast = cm.clone()",
+    replace_once("s.Clast = cm.clone()",
         '        s.Clast = cm.clone()\n'
         '        assert torch.allclose(s.H(),R,atol=1e-4,rtol=1e-5), "regroup changed effective head"')
     replace_once("    if a.save:\n",
