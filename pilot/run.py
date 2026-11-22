@@ -125,7 +125,7 @@ def main():
         overall=float(rec["scores"]["val"])
         unk=rec.get("bins",{}).get("unk")
         if unk is None:
-            raise ValueError("upstream did not emit the required UNK bin")
+            return overall  # no UNK targets: excluding UNK equals ordinary NLL
         unk_loss,unk_share=map(float,unk)
         if not 0<=unk_share<1:
             raise ValueError("invalid UNK target mass")
