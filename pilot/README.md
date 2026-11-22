@@ -1,3 +1,36 @@
+# NEW Project 11 acceleration extensions (2026-11-22)
+
+Based on the original coauthor 04 Identity/Pointer and 05 Pointer Doubling,
+this branch now contains TWO independent acceleration hypotheses plus their
+crossed ablation. Existing original-method pilot below is unchanged.
+
+- **Sparse Pointer Attention**: causal completed-block routing + exact
+  candidate refinement with no-backtrack. See pointer_accel.py.
+- **Online Jump-State Cache**: resident budget over (node,2^level)-hop
+  composed pointers, with LRU/LFU/random/level_LRU and Multi-Level Jump-State
+  Utility admission. See jump_cache.py.
+- **2x2 crossed experiment**: Dense/Sparse × No Cache/Utility Cache on
+  identical frozen-embedding multi-hop traces. See run_accel.py.
+- **Optional original paper integration**: integrate_pointer.py and
+  run_sparse_model.py compare original pdg.py vs sparse P/Q/R internal
+  updates with identical training, both seeds. Other Transformer heads
+  remain DENSE, so no model-wide speed/VRAM claim.
+- **All equations, caveats, benchmark rules**: [ACCEL_METHOD.md](ACCEL_METHOD.md).
+
+Local numerical/reference tests were checked; GitHub GPU training and
+hardware profiling have NOT been executed. Synthetic proxy evidence alone
+is never a new LLM result.
+
+    python3 -m unittest discover -s pilot -p 'test_*.py'
+    python3 pilot/run_accel.py --suite all --device cpu
+    # Full strict <=3h launcher for a Linux NVIDIA machine:
+    bash pilot/run_accel_3h.sh cuda
+
+Outputs: .pilot_workspace_pointer_accel/reports/accel.json and
+.pilot_workspace_pointer_sparse_model/reports/sparse_model_decision.json.
+
+---
+
 # Project 11 next-stage novelty gate: [GATE11.md](GATE11.md)
 
 The original reverse-order doubling/no-backtrack/lifting is prior coauthor work. The remaining Wuke research gap is order-agnostic, variable-hop composition, which is **not implemented** here; existing pilot is a stress test only.
