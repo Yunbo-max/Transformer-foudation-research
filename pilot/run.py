@@ -123,51 +123,66 @@ def main():
             raise ValueError("invalid UNK target mass")
         return (overall-unk_share*unk_loss)/(1-unk_share)
 
+    variants_dict=dict(variants)
     summary={"data":manifest,"budget_s":a.budget_seconds,
              "screen":"INCONCLUSIVE","pairs":[],
-             "method_hypothesis":"Gradient-history regrouping must beat row-weight regrouping"}
+             "method_hypothesis":"Positive-target gradient direction/magnitude vs existing weight k-means",
+             "variants":list(variants_dict),
+             "warning":"Pilot screen only. Complete 3+ real-data seeds and tune matched baselines."}
     for seed in a.seeds:
         def fetch(v):
-            r=report["runs"].get(f"rare_s{seed}_{v}",{})
-            return r.get("record") if r.get("status")=="ok" else None
-        E,W,G,R,F=(fetch(v) for v in ("adam_eps","learned_weights",
-                 "learned_gradients","fixed_random","fixed_frequency"))
-        if all(x is not None for x in (E,W,G,R,F)):
-            n={name:nll_without_unk(record)
-               for name,record in (("adam_eps",E),("learned_weights",W),
-                   ("learned_gradients",G),("fixed_random",R),("fixed_frequency",F))}
-            def rare_10_31(rec):
-                z=rec.get("bins",{}).get("10-31")
-                return None if z is None else {"nll":float(z[0]),"mass":float(z[1])}
-            summary["pairs"].append(dict(
-              seed=seed,
-              nll_all={name:float(rec["scores"]["val"]) for name,rec in (
-                ("adam_eps",E),("learned_weights",W),("learned_gradients",G),
-                ("fixed_random",R),("fixed_frequency",F))},
-              nll_no_unk=n,
-              gain_weight_vs_eps=n["adam_eps"]-n["learned_weights"],
-              gain_grad_vs_weight=n["learned_weights"]-n["learned_gradients"],
-              gain_grad_vs_fixed=max(n["fixed_random"],n["fixed_frequency"])-n["learned_gradients"],
-              rare_10_31={name:rare_10_31(rec) for name,rec in (
-                ("adam_eps",E),("learned_weights",W),("learned_gradients",G))},
-              rare_target_mass=W["rare_mass_lt100"],
-              unknown_target_mass=float(W["bins"]["unk"][1])))
+            run=report["runs"].get(f"rare_s{seed}_{v}",{})
+            return run.get("record") if run.get("status")=="ok" else None
+        records={v:fetch(v) for v in variants_dict}
+        if not all(rec is not None for rec in records.values()):
+            summary.setdefault("incomplete_seeds",[]).append(
+                dict(seed=seed,missing=[v for v,r in records.items() if r is None]))
+            continue
+        n={name:nll_without_unk(record) for name,record in records.items()}
+        def bin_score(rec,name):
+            z=rec.get("bins",{}).get(name)
+            return None if z is None else {"nll":float(z[0]),"mass":float(z[1])}
+        summary["pairs"].append(dict(
+            seed=seed,
+            nll_all={name:float(rec["scores"]["val"]) for name,rec in records.items()},
+            nll_no_unk=n,
+            gain_weight_vs_eps=n["adam_eps"]-n["learned_weights"],
+            gain_full_ema_vs_weight=n["learned_weights"]-n["learned_gradients"],
+            gain_direction_vs_weight=n["learned_weights"]-n["positive_direction"],
+            gain_dir_mag_vs_weight=n["learned_weights"]-n["positive_dir_mag"],
+            gain_magnitude_vs_direction=n["positive_direction"]-n["positive_dir_mag"],
+            bins={band:{name:bin_score(rec,band) for name,rec in records.items()}
+                  for band in ("1-9","10-31","32-99","100-315","unk")},
+            group_diagnostics={
+                name:rec.get("group_diagnostics",{})
+                for name,rec in records.items() if name!="adam_eps"},
+            rare_target_mass=float(records["learned_weights"]["rare_mass_lt100"]),
+            unknown_target_mass=float(records["learned_weights"]["bins"].get("unk",[0.,0.])[1])))
     if len(summary["pairs"])==len(a.seeds):
-        support=all(x["gain_weight_vs_eps"]>=.01 and
-                    x["rare_target_mass"]>=.05 for x in summary["pairs"])
-        new_support=all(x["gain_grad_vs_weight"]>=.005 and
-                        x["nll_no_unk"]["learned_gradients"]<
-                            min(x["nll_no_unk"]["fixed_random"],
-                                x["nll_no_unk"]["fixed_frequency"])
-                        for x in summary["pairs"])
-        summary["weight_regroup_support"]=support
-        summary["gradient_extension_support"]=new_support
+        summary["weight_regroup_support"]=all(
+            x["gain_weight_vs_eps"]>=.01 and x["rare_target_mass"]>=.05
+            for x in summary["pairs"])
+        summary["direction_support"]=all(
+            x["gain_direction_vs_weight"]>=.005 and
+            x["nll_no_unk"]["positive_direction"]<
+                min(x["nll_no_unk"]["fixed_random"],
+                    x["nll_no_unk"]["fixed_frequency"])
+            for x in summary["pairs"])
+        summary["direction_plus_magnitude_support"]=all(
+            x["gain_dir_mag_vs_weight"]>=.005 and
+            x["nll_no_unk"]["positive_dir_mag"]<
+                min(x["nll_no_unk"]["fixed_random"],
+                    x["nll_no_unk"]["fixed_frequency"])
+            for x in summary["pairs"])
+        summary["magnitude_incremental_support"]=all(
+            x["gain_magnitude_vs_direction"]>=.003 for x in summary["pairs"])
         if manifest["mode"]=="synthetic-topic-zipf":
             summary["screen"]="INCONCLUSIVE_PROXY_ONLY"
-        elif support and new_support:
-            summary["screen"]="GO_REAL_REPLICATION_NEW_GRADIENT_EXTENSION"
-        elif support:
-            summary["screen"]="BASELINE_REPLICATES_GRADIENT_EXTENSION_NOT_SUPPORTED"
+        elif summary["weight_regroup_support"] and (
+                 summary["direction_support"] or summary["direction_plus_magnitude_support"]):
+            summary["screen"]="GO_TO_3PLUS_SEED_REAL_DATA_REPLICATION"
+        elif summary["weight_regroup_support"]:
+            summary["screen"]="OLD_BASELINE_SUPPORTED_NO_NEW_GRADIENT_GAIN"
         else:
             summary["screen"]="NO_CLEAR_REAL_DATA_ADVANTAGE"
     (work/"reports"/"decision.json").write_text(json.dumps(summary,indent=2))
