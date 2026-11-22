@@ -1,7 +1,7 @@
 > **Paper-level experiments (one full training run per configuration, comparable published training budgets):** see [FULL_PAPER_EXPERIMENTS.md](FULL_PAPER_EXPERIMENTS.md).
 > This is a complete research protocol, **not yet a runnable paper-scale training pipeline**. Existing short-run scripts do not implement it.
 
-# NEW Project 11 acceleration extensions (2026-11-22)
+# Legacy Project 11 reference acceleration extensions (2026-11-22)
 
 Based on the original coauthor 04 Identity/Pointer and 05 Pointer Doubling,
 this branch now contains TWO independent acceleration hypotheses plus their
