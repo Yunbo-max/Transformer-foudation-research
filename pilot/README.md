@@ -1,3 +1,6 @@
+> **Paper-level experiments (3 seeds, comparable published training budgets):** see [FULL_PAPER_EXPERIMENTS.md](FULL_PAPER_EXPERIMENTS.md).
+> This is a complete research protocol, **not yet a runnable paper-scale training pipeline**. Existing short-run scripts do not implement it.
+
 # SG-Delta — Joint Historical-Query Write Protection and Directional Decay
 
 **Current revision: source-reviewed repair; numerical tests and training on
