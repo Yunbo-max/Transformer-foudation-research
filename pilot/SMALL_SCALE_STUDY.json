@@ -1,47 +1,107 @@
 {
-  "name": "Predicted-Skip",
-  "model": 340000000,
-  "tokens": 20000000000,
-  "context": 4096,
-  "data": {
-    "source": "FineWeb-Edu",
-    "shard_manifest": "prepare and freeze shared actual 20B-token training manifest; not bundled"
-  },
-  "arms": [
-    "official_gdn2",
-    "previous_query_write_skip",
-    "previous_query_joint_skip",
-    "shuffled_previous_query_control",
-    "current_key_read_control"
-  ],
-  "eval": [
-    "heldout_fineweb_20m_tokens",
-    "ruler_native_13_tasks_500_per_length",
-    "heldout_old_new_fact_2000_per_primary_condition",
-    "false_skip_rate_and_gate_events",
-    "official_gdn2_parity_and_real_gpu_profile"
-  ],
-  "ideal_h100_per_arm": 56.7,
-  "estimated_total_h100_hours": [
-    480,
-    1200
-  ],
-  "resources": {
-    "vram_gb": 80,
-    "host_ram_gb": 128,
-    "workspace_tb": 1
-  },
   "version": "2026-11-22",
-  "stage": "active_small_scale_full_training",
-  "implementation_status": "PLANNED_CONFIGURATION_ONLY_FULL_SCALE_TRAINER_AND_NATIVE_EVAL_NOT_YET_IMPLEMENTED",
-  "seeds": [
-    42
-  ],
-  "one_checkpoint_per_arm": true,
-  "training_job_count": 5,
+  "name": "Predicted-Skip",
+  "stage": "active_lean_full_training_design",
+  "main_model_parameters": 340000000,
+  "main_training_tokens_per_arm": 20000000000,
+  "context_length": 4096,
+  "train_seed": 42,
   "train_from_scratch": true,
-  "requires_full_training_tokens": true,
-  "large_model_followup": "deferred_not_part_of_current_experiments",
-  "timing": "H100 figures unmeasured; GPU hours include wide engineering + evaluation range",
-  "design_document": "pilot/FULL_PAPER_EXPERIMENTS.md"
+  "main_jobs": [
+    {
+      "key": "official_gdn2",
+      "role": "baseline",
+      "why": "native unmodified GDN-2, essential direct comparator",
+      "model_parameters": 340000000,
+      "training_tokens": 20000000000,
+      "training_seed": 42,
+      "context": 4096,
+      "checkpoint_tokens": [
+        2000000000,
+        20000000000
+      ]
+    },
+    {
+      "key": "qed",
+      "role": "baseline",
+      "why": "2026 query-informed interference-erasure SOTA comparator",
+      "model_parameters": 340000000,
+      "training_tokens": 20000000000,
+      "training_seed": 42,
+      "context": 4096,
+      "checkpoint_tokens": [
+        2000000000,
+        20000000000
+      ]
+    },
+    {
+      "key": "gdn2_previous_query_write_only",
+      "role": "baseline",
+      "why": "closest skip mechanism with value write suppression but no erase scaling",
+      "model_parameters": 340000000,
+      "training_tokens": 20000000000,
+      "training_seed": 42,
+      "context": 4096,
+      "checkpoint_tokens": [
+        2000000000,
+        20000000000
+      ]
+    },
+    {
+      "key": "gdn2_previous_query_joint",
+      "role": "ours",
+      "why": "GDN-2-port of joint erase/write answer feedback, with native guard parity",
+      "model_parameters": 340000000,
+      "training_tokens": 20000000000,
+      "training_seed": 42,
+      "context": 4096,
+      "checkpoint_tokens": [
+        2000000000,
+        20000000000
+      ]
+    }
+  ],
+  "short_ablation_jobs": [
+    {
+      "key": "previous_query_shuffled_control",
+      "tokens": 2000000000,
+      "reference": "gdn2_previous_query_joint",
+      "why": "does previous-query information matter beyond extra parameters?",
+      "training_seed": 42,
+      "model_parameters": 340000000,
+      "context": 4096,
+      "match_main_checkpoints_at_equal_consumed_tokens": true,
+      "keep_main_full_length_lr_schedule": true
+    },
+    {
+      "key": "current_key_read_control",
+      "tokens": 2000000000,
+      "reference": "gdn2_previous_query_joint",
+      "why": "replace previous-query read by current-key feedback",
+      "training_seed": 42,
+      "model_parameters": 340000000,
+      "context": 4096,
+      "match_main_checkpoints_at_equal_consumed_tokens": true,
+      "keep_main_full_length_lr_schedule": true
+    }
+  ],
+  "inference_only": [],
+  "evaluations": [
+    "PRIMARY: old knowledge retention AND new fact plasticity after answer re-entry, 2,000 held-out cases each for overwrite/alias/hot-cold/changed answer; false skip rate and event-conditioned suppression",
+    "Native FineWeb-Edu NLL >=20M tokens, WikiText-103, LAMBADA, commonsense QA and retrieval tasks with fixed native prompt/eval",
+    "Native RULER 500 samples per supported task/length 4K-32K plus 2,000 independent priority NIAH/multi-key cases",
+    "Official NVIDIA GDN-2 forward/backward/guard parity and end-to-end GPU token throughput, prefill/decode latency, allocations, extra kernel work"
+  ],
+  "reference_notes": [
+    "Vuk Rosic's original Predicted-Skip already includes write and joint erase/write suppression (lpsE=1). The joint mechanism itself is PRIOR ART. A GDN-2 port alone is not established paper-level originality.",
+    "QED native official release or faithful independent reimplementation must be confirmed. Do not conflate mismatched update rules.",
+    "Soft skip is not actual reduced FLOPs unless a concrete kernel avoids work.",
+    "Initial official kernel parity validation must pass before a full run."
+  ],
+  "training_main_count": 4,
+  "training_short_count": 2,
+  "total_train_jobs": 6,
+  "token_read_volume": 84000000000,
+  "estimated_ideal_h100_hours": 238,
+  "implementation_status": "DESIGN_ONLY_FULL_TRAINER_KERNEL_DATA_EVAL_NOT_YET_READY"
 }
