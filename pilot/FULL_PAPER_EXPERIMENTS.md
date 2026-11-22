@@ -1,0 +1,29 @@
+# Dynamic Shared LM Output Vectors — FULL PAPER EXPERIMENT PROTOCOL (2026-11-22)
+
+STATUS: FULL STUDY DESIGN ONLY; current 32-width, 400-step synthetic/default runner and 2-seed script do NOT meet these experiments and have NOT run a large natural LM. The retained additive head w_i = own_i + C[group_i] and its dynamic weight K-means baseline are original Vuk Rosic research, not new to Wuke.
+
+## Direct related works
+- Original shared output words, vukrosic/llm-research-paper-drafts/01-rare-words-shared-output-vectors: <=24K vocabulary, tiny networks, <=1.6M tokens; admits large-batch risks and need for 125M+ realistic test.
+- Syntactic Smoothing (EMNLP 2024; aclanthology 2024.emnlp-main.344): linguistic smoothing for long-tail tokens; reported small 12.75M model, 10M BabyLM text, 67 BLiMP tasks each with 1,000 grammatical pairs.
+- This study must evaluate new positive-target historical gradient direction and optional magnitude against original weight KMeans, NOT only against unshared Adam.
+
+## TRAINING 3 seeds per full model
+- 125M decoder / 5B genuine FineWeb-Edu tokens / 2K context, full 50,257 GPT-2 vocabulary, 8 matched arms x 3 seeds = 24 trainings: tuned AdamW epsilon-only, fixed random clusters, fixed frequency clusters, original dynamic weight K-means, full-gradient EMA K-means, positive-target gradient direction, direction+magnitude, fixed syntactic/morphological smoothing (faithful separate comparator). Use proper POS smoothing on tokenized text, with extra external labels disclosed and its own tuned settings.
+- 350M decoder / 20B same-source tokens / 2K-4K context, five primary arms x 3 seeds = 15 trainings: tuned epsilon, original dynamic weight clusters, positive-direction clusters, direction+magnitude clusters, Syntactic Smoothing. Same untied/tied output design within each paired group. Do not compare across tied/untied without matching both arms.
+- Additional predefined 125M factorial evaluations/controlled trainings: vocabulary 50K vs 100K (requiring a NEW tokenizer trained on TRAIN ONLY), tied vs untied LM head, batch token sizes (64K/256K/512K) AT FIXED TOKEN BUDGET, group counts K (64,256,1024), regroup frequencies and optimizer-state reset control. All consequential training ablations >=3 seeds. Preallocate extra GPU budget; their costs are not included in base two-size formula.
+
+## Evaluation, not just overall cross entropy
+- Independent natural held-out FineWeb-Edu >=50M tokens plus at least two disjoint out-of-domain sets; NLL with full authentic vocabulary (NO mapping to an artificial UNK). 3 trained seeds; report overall NLL, per-frequency quantiles, per-token type-level accuracy/NLL, common-token regression and group-size distributions.
+- Pre-registered token cohorts: training-count quantiles and 1-9/10-99/100-999/1000+ *only if actually populated*. A naturally tokenized 20B corpus has too few literal 1-9 count tokens in a typical 50K vocab: if empty, DON'T fabricate them. Add a separate stratified held-out rare-word challenge with >=2,000 distinct eligible token types and >=10 held-out contexts per type where feasible; report weighted vs stratified metrics separately.
+- BLiMP all 67 subtasks x 1,000 pairs, sentence-frequency bias stratification, representation anisotropy, low-frequency morphology and OOD document NLL; standard commonsense benchmarks as secondary (HellaSwag, ARC, LAMBADA). End user-facing perplexity on identical tokenization.
+- Ablations must eliminate confounds from optimizer state reset, changing batch, group parameter count, UNK token mapping, momentum and statistical multiple comparisons. Compare training and folded-head inference throughput and model size.
+
+## Non-negotiable rules (full-paper, not feasibility screening)
+- Minimum THREE independently initialized TRAINING runs for EVERY main result, paired seeds {11,22,33} across arms with identical frozen data/order, tokenizer, optimizer family, train tokens and parameter budget. Report all three values, mean, standard deviation; preserve seeds and checkpoints. A bootstrap over questions NEVER substitutes for training seeds.
+- Pre-register a single primary metric and contrasts. Freeze train/val/test disjointness and test prompts before running. Validation selects hyperparameters (per-arm equal tuning budget), never test. Report natural-distribution scores AND hard conditional groups; no post-hoc selective tables.
+- Synthetic benchmark generators must use independently held-out graph instances/keys and fixed generation seeds common across methods; report sample counts in every table. Two-sided paired bootstrap on test instances (cluster by document/graph), seed-level variability separately, and appropriate multiplicity correction for many tests.
+- Log wall clock, throughput, actual peak GPU allocated/reserved VRAM, FLOPs including routing/index construction, host RAM, model size, accuracy/NLL and checkpoints. Run on real NVIDIA GPUs. No CPU/symbolic cached-byte or pair-count proxy can be reported as measured GPU speedup.
+- Use full training, never tiny 50-step or 400-step runs for claims. All stated experiments below are PLANNED and NOT executable by the old pilot scripts as-is. The repository's existing developer runner is not a paper-scale trainer.
+
+## Resource calculation
+Reference 6*P*T / assumed 200 TFLOP/s H100 effective: 125M/5B =~5.2 h/run (24 runs ~125 GPUh), 350M/20B =~58.3 h/run (15 runs ~875 GPUh). Rough theoretical ~1,000 H100 GPUh ONLY for core trainings, excluding extra vocab/batch/factorial training, model overhead, validation, checkpointing and GPU underutilization (especially 125M). Main workloads can use 24-48GB GPU with gradient checkpointing; 80GB simplifies larger batch/vocab. 64-128GB RAM, ~2TB free data/checkpoint scratch.
