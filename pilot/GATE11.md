@@ -1,3 +1,44 @@
+# Current Wuke 11 gate — Pointer acceleration extensions (2026-11-22)
+
+The prior **Order-Agnostic Pointer Composition** proposal remains a separate
+unimplemented research option, but it is NOT the active acceleration pilot.
+The active proposal keeps coauthor 04+05 as the novel model foundation,
+and tests TWO separate cost reductions:
+
+**S — Sparse Pointer:** Completed-block content routing of original
+P/Q/R lookup, versus dense and dense-topk controls. No future-leaking
+centroids; same no-backtrack correction. PyTorch reference operator.
+**C — Online Multi-Level Jump-State Cache:** Cache the 2^level-hop computed
+destinations rather than every token KV. Strong LRU/LFU/random/level-aware
+controls. Multi-Level Jump-State Utility uses past accesses and expected
+recompute cost, not future labels. Updates flush all entries conservatively.
+**S×C — Crossed:** Dense/Sparse × No-Cache/Utility under identical frozen
+neural edge-reader workload. Wrong sparse edges count as real answer errors.
+
+Files: pointer_accel.py, jump_cache.py, run_accel.py, test_accel.py,
+integrate_pointer.py, run_sparse_model.py, run_accel_3h.sh.
+Detailed equations and hard limitations: [ACCEL_METHOD.md](ACCEL_METHOD.md).
+Existing model-runner and original coauthor benchmark remain available.
+
+The complete original paper is NOT yet sparsified: ordinary Transformer
+attention and no-backtrack residual logits still use dense matrices. An
+optional pinned-upstream adapter tests whether sparse P/Q/R internal reads
+can retain the coauthor 04+05 final-answer accuracy.
+
+**Stage status:** model adapter and experiments committed, and corresponding
+local CPU math/simulation checks pass. NO full pinned pdg.py coauthor model
+train, long-context CUDA runtime/memory or real-text improvement was verified.
+Do not claim end-to-end O(Nr) or GPU acceleration from symbolic cache counts.
+
+**Decision rule:** reject the new mechanism if block-sparse coauthor
+reverse7 falls more than 3pp behind dense on either seed, or if cache
+Utility does not beat LRU and LFU on multiple shifted request streams.
+Only investigate CUDA optimization and real LM tests after these gates.
+
+---
+
+## Historical order-generalization proposal (not the current active method)
+
 # Wuke Candidate 11 — Identity + Pointer Doubling: Novelty and Order-Generalization Gate
 
 **Status (2026-11-22): existing coauthor baseline runner committed; no new
