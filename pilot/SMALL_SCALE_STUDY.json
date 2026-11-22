@@ -1,0 +1,51 @@
+{
+  "name": "Dynamic Shared LM Output Vectors",
+  "model": 125000000,
+  "tokens": 5000000000,
+  "context": 2048,
+  "data": {
+    "source": "FineWeb-Edu",
+    "vocab": "Full GPT-2 50257; no artificial UNK",
+    "shard_manifest": "prepare and freeze shared actual 5B-token training manifest; not bundled"
+  },
+  "arms": [
+    "tuned_adam_eps",
+    "fixed_random",
+    "fixed_frequency",
+    "original_dynamic_weight_kmeans",
+    "full_gradient_ema_kmeans",
+    "positive_gradient_direction",
+    "positive_gradient_direction_magnitude",
+    "syntactic_morphological_smoothing"
+  ],
+  "eval": [
+    "heldout_fineweb_50m_tokens",
+    "two_ood_text_corpora",
+    "blimp_official_67_tasks",
+    "rare_token_stratified_heldout_2000_types_target_10_contexts_each",
+    "folded_lm_head_latency_and_vram"
+  ],
+  "ideal_h100_per_arm": 5.2,
+  "estimated_total_h100_hours": [
+    125,
+    630
+  ],
+  "resources": {
+    "vram_gb": 24,
+    "host_ram_gb": 64,
+    "workspace_tb": 0.5
+  },
+  "version": "2026-11-22",
+  "stage": "active_small_scale_full_training",
+  "implementation_status": "PLANNED_CONFIGURATION_ONLY_FULL_SCALE_TRAINER_AND_NATIVE_EVAL_NOT_YET_IMPLEMENTED",
+  "seeds": [
+    42
+  ],
+  "one_checkpoint_per_arm": true,
+  "training_job_count": 8,
+  "train_from_scratch": true,
+  "requires_full_training_tokens": true,
+  "large_model_followup": "deferred_not_part_of_current_experiments",
+  "timing": "H100 figures unmeasured; GPU hours include wide engineering + evaluation range",
+  "design_document": "pilot/FULL_PAPER_EXPERIMENTS.md"
+}
