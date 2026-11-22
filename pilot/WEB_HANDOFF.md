@@ -1,4 +1,14 @@
-# Source repair handoff — 2026-11-21
+# Source repair handoff — updated 2026-11-22
+
+## Follow-up review
+
+Parent revision: dcf194e6568d25e28d59b7ba8ccf66d9a37d5a2c.
+An independent source review found no additional required change to the
+joint objective, causal covariance timing or fixed-H stability statement.
+The core implementation is retained. README now explicitly calls the
+numerical checks authored and unexecuted; common.py's module description
+identifies the task as a developer diagnostic rather than published MQAR.
+No new numerical or performance result is claimed.
 
 ## Inputs and merge
 

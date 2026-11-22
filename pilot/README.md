@@ -27,8 +27,9 @@ completed chunks' exponentially weighted projected-query outer products.
 The approved joint formula is preserved. Cholesky, covariance, residuals and
 state accumulation now run in FP32 under mixed precision, or FP64 for explicit
 mathematical checks. No silent diagonal jitter or eigenvalue clipping changes
-the objective. The helpers used by the actual mixer are tested against the
-unified quadratic objective's direct solve.
+the objective. Authored regression checks compare the helpers used by the
+actual mixer with a direct solve of the unified quadratic objective;
+execution of these checks remains pending.
 
 The code counts all projected queries, not verified retrieval success or
 semantic importance. Protection is soft; stale frequently used associations

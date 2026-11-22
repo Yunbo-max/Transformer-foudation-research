@@ -1,5 +1,5 @@
-"""Common synthetic MQAR benchmark and small decoder, PyTorch only.
-No official NVIDIA code is redistributed. No real LM benchmark claim.
+"""Developer-created associative-recall diagnostic and small decoder.
+This is not the published MQAR benchmark. No real LM benchmark claim.
 """
 import json, time, random
 from pathlib import Path

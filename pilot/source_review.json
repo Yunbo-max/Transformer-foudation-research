@@ -1,6 +1,6 @@
 {
   "status": "SOURCE_REVIEWED_NUMERICAL_EXECUTION_PENDING",
-  "review_date": "2026-11-21",
+  "review_date": "2026-11-22",
   "python_ast_parse": "PASS",
   "parsed_files": [
     "common.py",
@@ -21,7 +21,7 @@
   "cuda_parity_executed": false,
   "training_executed": false,
   "source_sha256": {
-    "common.py": "64490eab99b988b26ea9aa72f4745969066007f99b346db522e97a9b2726fcb8",
+    "common.py": "e48d259a01f0fa64efd5ca1b53e484f9f876fce8186ceea07ee9094ead139f5b",
     "mechanism_check.py": "b139c9d373f956d671cb3d6261b828fa53b6daac486c71da2e3025e0da1dfcc6",
     "run.py": "8bf4a89cda6e1ea91d2404ff4aa1290598745641228a677de5f6cacc959c9881",
     "screening.py": "1376863cb924217418df94fc5387feeb50fb5b740108ab789f4af0a451f30fe3",
@@ -29,5 +29,6 @@
     "test_methods.py": "8fc2bea40e96ff52f55ee6e6c77aaea512e8e80814a8c7bc68750e2a005cc4e4",
     "test_screening.py": "a6590a89e9404ad6b40d593f31e6d5c1a11bf2ae26a9448e833cee9602bd000c"
   },
-  "scope": "Static syntax/source review only; not a runtime, benchmark or scientific pass"
+  "scope": "Static syntax/source review only; not a runtime, benchmark or scientific pass",
+  "follow_up_scope": "Re-reviewed unchanged SG-Delta recurrence and objective; clarified authored-but-unexecuted checks and source descriptions"
 }
