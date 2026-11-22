@@ -77,8 +77,12 @@ def main():
     p.add_argument("--real-data-dir",default=None)
     p.add_argument("--steps",type=int,default=400)
     p.add_argument("--seeds",type=int,nargs="+",default=[0,1])
+    p.add_argument("--positive-min-count",type=int,default=3)
+    p.add_argument("--magnitude-weight",type=float,default=0.35)
     a=p.parse_args()
     assert 0<a.budget_seconds<=10600
+    if a.positive_min_count<1 or not 0<=a.magnitude_weight<=3.:
+        raise ValueError("invalid positive gradient clustering settings")
     root=Path(__file__).resolve().parent.parent
     work=root/a.work_dir
     upstream=ensure_upstream(work)
@@ -99,8 +103,12 @@ def main():
         ("fixed_frequency",["--clus",64,"--cinit","freq","--heps","1e-5"]),
         ("learned_weights",["--clus",64,"--cinit","kmeans","--group_on","weights","--heps","1e-5"]),
         ("learned_gradients",["--clus",64,"--cinit","kmeans","--group_on","grads","--heps","1e-5"]),
-        ("positive_direction",["--clus",64,"--cinit","kmeans","--group_on","positive_direction","--heps","1e-5"]),
-        ("positive_dir_mag",["--clus",64,"--cinit","kmeans","--group_on","positive_dir_mag","--heps","1e-5"]),
+        ("positive_direction",["--clus",64,"--cinit","kmeans","--group_on","positive_direction",
+                               "--positive_min_count",a.positive_min_count,"--heps","1e-5"]),
+        ("positive_dir_mag",["--clus",64,"--cinit","kmeans","--group_on","positive_dir_mag",
+                             "--positive_min_count",a.positive_min_count,
+                             "--gradient_magnitude_weight",a.magnitude_weight,
+                             "--heps","1e-5"]),
     ]
     cases=[]
     for seed in a.seeds:
@@ -128,6 +136,8 @@ def main():
              "screen":"INCONCLUSIVE","pairs":[],
              "method_hypothesis":"Positive-target gradient direction/magnitude vs existing weight k-means",
              "variants":list(variants_dict),
+             "positive_min_count":a.positive_min_count,
+             "magnitude_weight":a.magnitude_weight,
              "warning":"Pilot screen only. Complete 3+ real-data seeds and tune matched baselines."}
     for seed in a.seeds:
         def fetch(v):
