@@ -100,7 +100,15 @@ def main():
                     conf_minus_best_fixed=conf-min(const)))
     hard=[x for x in summary["comparisons"] if x["config"]=="high900"]
     if len(hard)==len(a.seeds):
-        summary["screen"]="GO_REAL_DATA" if all(x["conf_minus_hold"]<=-0.005 and x["conf_minus_best_fixed"]<=0.006 for x in hard) else "NO_GO_DYNAMIC_HOLD"
+        improved=all(x["conf_minus_hold"]<=-0.005 and
+                     x["conf_minus_best_fixed"]<=0.006 and
+                     x["confidence"]<=x["post_noise"]-0.002
+                     for x in hard)
+        summary["confidence_beyond_post_noise"]=improved
+        if manifest["mode"]=="synthetic-topic-zipf":
+            summary["screen"]="INCONCLUSIVE_PROXY_ONLY"
+        else:
+            summary["screen"]="GO_TO_REPLICATION" if improved else "NO_CLEAR_ADVANTAGE"
     (work/"reports"/"decision.json").write_text(json.dumps(summary,indent=2))
     print(json.dumps(summary,indent=2))
     if not summary["comparisons"]:raise SystemExit("No complete paired result")
