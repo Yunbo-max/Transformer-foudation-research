@@ -1,50 +1,58 @@
 {
+  "version": "2026-11-22",
   "name": "Identity + Pointer Doubling",
-  "model": 340000000,
-  "tokens": 20000000000,
-  "context": 4096,
-  "data": {
-    "source": "FineWeb-Edu + independently generated graph/chain training",
-    "mix_ratio": {
-      "fineweb": 0.8,
-      "graph": 0.2
+  "stage": "active_lean_full_training_design",
+  "main_model_parameters": 340000000,
+  "main_training_tokens_per_arm": 20000000000,
+  "context_length": 4096,
+  "train_seed": 42,
+  "train_from_scratch": true,
+  "main_jobs": [
+    {
+      "key": "tuned_dense_transformer",
+      "role": "baseline",
+      "training_tokens": 20000000000
     },
-    "shard_manifest": "prepare and freeze same 20B-token 80:20 training mixture and graph template disjointness; not bundled"
-  },
-  "arms": [
-    "tuned_dense_transformer",
-    "original_dense_identity_pointer_doubling",
-    "causal_block_sparse_pointer",
-    "identity_hash_sparse_pointer"
+    {
+      "key": "original_dense_identity_pointer_doubling",
+      "role": "baseline",
+      "training_tokens": 20000000000
+    },
+    {
+      "key": "causal_block_sparse_pointer",
+      "role": "baseline",
+      "training_tokens": 20000000000
+    },
+    {
+      "key": "identity_hash_sparse_pointer",
+      "role": "ours",
+      "training_tokens": 20000000000
+    }
+  ],
+  "short_ablation_jobs": [
+    {
+      "key": "hash_without_identity_conditioning",
+      "tokens": 2000000000,
+      "training_seed": 42,
+      "compare_to": "identity_hash_sparse_pointer_checkpoint_at_2B",
+      "same_main_lr_schedule": true
+    }
+  ],
+  "inference_only": [
+    "No cache vs LRU vs LFU vs Multi-Level Jump-State Utility; same neural checkpoint, 5 traces each, budget physical bytes 12.5/25/50%, edit rates 0/1/10%",
+    "Dense/Hash x None/LFU/Utility, compare full-model actual GPU latency and VRAM, include LRU in cache-only comparisons"
   ],
   "eval": [
-    "heldout_graphqa_2000_per_primary_structure_length",
-    "ruler_native_500_per_task_length",
-    "babilong_native_1000_per_available_task_length",
-    "sparse_dense_latency_vram_and_candidate_recall",
-    "online_cache_five_request_traces_per_policy"
+    "native RULER 500/cell + 2000 extended priority graphs",
+    "BABILong native 1000 when available",
+    "held-out GraphQA 2000/priority condition",
+    "natural heldout NLL >=20m tokens",
+    "actual measured GPU memory and end-to-end speed"
   ],
-  "ideal_h100_per_arm": 56.7,
-  "estimated_total_h100_hours": [
-    480,
-    2100
-  ],
-  "resources": {
-    "vram_gb": 80,
-    "host_ram_gb": 128,
-    "workspace_tb": 1
-  },
-  "version": "2026-11-22",
-  "stage": "active_small_scale_full_training",
-  "implementation_status": "PLANNED_CONFIGURATION_ONLY_FULL_SCALE_TRAINER_AND_NATIVE_EVAL_NOT_YET_IMPLEMENTED",
-  "seeds": [
-    42
-  ],
-  "one_checkpoint_per_arm": true,
-  "training_job_count": 4,
-  "train_from_scratch": true,
-  "requires_full_training_tokens": true,
-  "large_model_followup": "deferred_not_part_of_current_experiments",
-  "timing": "H100 figures unmeasured; GPU hours include wide engineering + evaluation range",
-  "design_document": "pilot/FULL_PAPER_EXPERIMENTS.md"
+  "training_main_count": 4,
+  "training_short_count": 1,
+  "total_train_jobs": 5,
+  "token_read_volume": 82000000000,
+  "estimated_ideal_h100_hours": 232.33333333333334,
+  "implementation_status": "DESIGN_ONLY_FULL_TRAINER_KERNEL_DATA_EVAL_NOT_YET_READY"
 }
