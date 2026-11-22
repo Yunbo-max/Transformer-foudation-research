@@ -24,7 +24,10 @@ def pointer_lookup(q:torch.Tensor,k:torch.Tensor,v:torch.Tensor,
                    history:torch.Tensor|None=None,
                    historical_keys:torch.Tensor|None=None,
                    penalty:float=0.,
-                   query_positions:torch.Tensor|None=None):
+                   query_positions:torch.Tensor|None=None,
+                   hash_bits:int=8,hash_probes:int=2,
+                   hash_bucket:int=32,local_window:int=8,
+                   hash_seed:int=721):
     """Return causal pointer output and actual routing/matching counts.
 
     For mode=block, each query scores all COMPLETED block centroids, selects
@@ -37,7 +40,7 @@ def pointer_lookup(q:torch.Tensor,k:torch.Tensor,v:torch.Tensor,
     discrete routing indices. Block-mean routing may miss rare matching keys.
     """
     _validate(q,k,v,query_positions)
-    if mode not in ("dense","dense_topk","block"):raise ValueError("invalid mode")
+    if mode not in ("dense","dense_topk","block","hash"):raise ValueError("invalid mode")
     if min(block_size,blocks,topk,chunk)<1:raise ValueError("invalid budget")
     if (history is None)!=(historical_keys is None):
         raise ValueError("supply both no-backtrack tensors")
@@ -54,6 +57,11 @@ def pointer_lookup(q:torch.Tensor,k:torch.Tensor,v:torch.Tensor,
         if positions.shape==(nq,):positions=positions[None].expand(b,-1)
         if positions.shape!=(b,nq):raise ValueError("query_positions must be [B,Q] or [Q]")
     scale=d**-.5
+    if mode=="hash":
+        from pointer_hash import hash_pointer_lookup
+        return hash_pointer_lookup(q,k,v,positions,scale,history,historical_keys,
+             penalty,hash_bits,hash_probes,hash_bucket,local_window,
+             hash_seed,chunk)
     if mode in ("dense","dense_topk"):
         scores=q@k.transpose(1,2)*scale
         if history is not None and penalty:
