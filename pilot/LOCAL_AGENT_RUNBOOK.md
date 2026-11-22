@@ -17,7 +17,7 @@ From the repository root:
 ```bash
 python3 -m unittest discover -s pilot -p 'test_*.py'
 python3 pilot/oracle_diagnostic.py
-python3 pilot/run.py --profile smoke --methods baseline joint --seeds 0 --eval-batches 1 --eval-batch-size 2 --budget-seconds 120
+python3 pilot/run.py --profile smoke --methods baseline joint --seeds 0 --eval-batches 1 --eval-batch-size 2 --budget-seconds 120 --diagnostics
 ```
 
 Retain all failures. One-seed smoke is scientifically INCONCLUSIVE. The oracle
@@ -61,6 +61,15 @@ bash pilot/run_3h.sh --device cuda --backend reference --guard native --precisio
 All arms use the same dispatch and architecture. --diagnostics is reference-only
 and collects active-edit quantities in evaluation. Soft suppression does not
 itself avoid a kernel call or establish a speedup.
+
+For an existing reference diagnostic run, include --diagnostics to save
+gate_events in each evaluation panel. Inspect initial_fact, alias_fact and
+new_fact alongside answer_alias, answer_new_post and old-answer groups.
+Compare rho, baseline_edit_norm and applied_edit_norm jointly with the
+corresponding learning scores. A lower mean rho alone is not success.
+Counts refer to token positions and token/head observations separately;
+answer writes occur one token after their scoring logits. The alias query
+is immediate, not delayed. Do not sum overlapping old_post/hot/cold groups.
 
 ## 5. Return evidence
 

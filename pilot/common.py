@@ -1,5 +1,5 @@
-"""Common synthetic MQAR benchmark and small decoder, PyTorch only.
-No official NVIDIA code is redistributed. No real LM benchmark claim.
+"""Developer-created associative-recall diagnostic and small decoder.
+This is not the published MQAR benchmark. No real LM benchmark claim.
 """
 import json, time, random
 from pathlib import Path
@@ -24,7 +24,10 @@ def generate_batch(batch=4,pairs=8,queries=8,distractors=4,alias=True,*,
         vals=rng.sample(range(values_base,values_base+key_space),pairs+distractors)
         text=[BOS]
         facts=list(zip(keys[:pairs],vals[:pairs]))
-        for k,v in facts:text.extend([FACT,k,v])
+        fact_events={"initial_fact":[],"alias_fact":[],"new_fact":[]}
+        for k,v in facts:
+            text.extend([FACT,k,v])
+            fact_events["initial_fact"].append(len(text)-1)
         targets=[];groups=[]
         # Same number of INITIAL fact writes, intentionally skewed query usage.
         # Hot fact 0 is queried often; cold fact 1 is queried at the end.
@@ -37,6 +40,7 @@ def generate_batch(batch=4,pairs=8,queries=8,distractors=4,alias=True,*,
             if qi==queries//2:
                 for d in range(distractors):
                     text.extend([FACT,keys[pairs+d],vals[pairs+d]])
+                    fact_events["new_fact"].append(len(text)-1)
                 # Crucial plasticity control: immediately query genuinely new facts.
                 # This separates remembering old facts from rejecting all new writes.
                 for d in range(min(2,distractors)):
@@ -50,17 +54,20 @@ def generate_batch(batch=4,pairs=8,queries=8,distractors=4,alias=True,*,
             if alias and qi==0:
                 ak=keys[-1];av=facts[j][1]
                 text.extend([FACT,ak,av]) # new Key, same old Value
+                fact_events["alias_fact"].append(len(text)-1)
                 text.extend([QUERY,ak,av])
                 targets.append(len(text)-1)
                 groups.append("alias")
-        tokens.append((text,targets,groups))
+        tokens.append((text,targets,groups,fact_events))
     T=len(tokens[0][0]);assert all(len(z[0])==T for z in tokens)
     x=torch.tensor([z[0] for z in tokens],dtype=torch.long,device=device)
     mask=torch.zeros((batch,T-1),dtype=torch.bool,device=device)
     group={g:torch.zeros_like(mask) for g in SCORE_GROUPS[1:]}
     answer_token_mask=torch.zeros((batch,T),dtype=torch.bool,device=device)
     fact_token_mask=torch.zeros_like(answer_token_mask)
-    for b,(seq,targets,labels) in enumerate(tokens):
+    event_token_masks={name:torch.zeros_like(answer_token_mask)
+                       for name in ("initial_fact","alias_fact","new_fact")}
+    for b,(seq,targets,labels,fact_events) in enumerate(tokens):
         for pos,name in zip(targets,labels):
             mask[b,pos-1]=True;group[name][b,pos-1]=True
             if name in ("old_post_hot","old_post_cold"):
@@ -68,8 +75,17 @@ def generate_batch(batch=4,pairs=8,queries=8,distractors=4,alias=True,*,
             answer_token_mask[b,pos]=True
         for pos in range(1,len(seq)-2):
             if seq[pos]==FACT:fact_token_mask[b,pos+2]=True
+        for name,positions in fact_events.items():
+            event_token_masks[name][b,positions]=True
+    # Loss at pos-1 predicts the answer at pos; the answer's write is at pos.
+    # Keep event metadata out of the model input and its gate computation.
+    for name,score_mask in group.items():
+        event_mask=torch.zeros_like(answer_token_mask)
+        event_mask[:,1:]=score_mask
+        event_token_masks["answer_"+name]=event_mask
     return {"tokens":x,"loss_mask":mask,"groups":group,
       "answer_token_mask":answer_token_mask,"fact_token_mask":fact_token_mask,
+      "event_token_masks":event_token_masks,
       "vocab_size":4+2*key_space,"length":T}
 
 class MemoryBlock(nn.Module):
@@ -182,17 +198,51 @@ def _aggregate_panel(rows, *, pairs, distractors, eval_seeds, expected_batches,
             ]
     metric_prefixes = tuple(g + "_" for g in SCORE_GROUPS)
     for key in rows[0]:
-        if key == "seq_len" or key.startswith(metric_prefixes):
+        if key in ("seq_len", "gate_events") or key.startswith(metric_prefixes):
             continue
         values = [r[key] for r in rows if isinstance(r.get(key), (float, int))]
         if values:
             result[key] = sum(values) / len(values)
+    events = _aggregate_gate_events(rows)
+    if events:
+        result["gate_events"] = events
     return result
 
 
+def _aggregate_gate_events(rows):
+    """Sum event observations before taking means; groups can overlap."""
+    merged = {}
+    for row in rows:
+        for layer, events in row.get("gate_events", {}).items():
+            layer_events = merged.setdefault(layer, {})
+            for name, event in events.items():
+                total = layer_events.setdefault(name, dict(
+                    token_count=0, head_token_count=0, rho_below_half_count=0,
+                    metrics={}))
+                for count in ("token_count", "head_token_count", "rho_below_half_count"):
+                    total[count] += event[count]
+                for metric, value in event["metrics"].items():
+                    combined = total["metrics"].setdefault(metric, dict(sum=0., count=0))
+                    combined["sum"] += value["sum"]
+                    combined["count"] += value["count"]
+    for events in merged.values():
+        for total in events.values():
+            total["rho_below_half_fraction"] = (
+                total["rho_below_half_count"] / total["head_token_count"])
+            for value in total["metrics"].values():
+                value["mean"] = value["sum"] / value["count"]
+    return merged
+
+
 def _gate_diagnostics(model, batch):
-    """Event labels stratify evaluation only; they never enter the predictor."""
+    """Observe writes at token positions, not next-token prediction positions.
+
+    Event labels stratify evaluation only; they never enter the predictor.
+    Fact-value labels are positions, not ground truth for whether a write is
+    necessary. Causal convolutions can carry the same fact into later tokens.
+    """
     diagnostics = {}
+    gate_events = {}
     for layer, block in enumerate(model.blocks):
         mixer = block.mixer
         rho = getattr(mixer, "last_rho", None)
@@ -208,6 +258,38 @@ def _gate_diagnostics(model, batch):
         for key, value in (getattr(mixer, "last_diagnostics", None) or {}).items():
             if torch.is_tensor(value) and value.numel():
                 diagnostics[f"layer{layer}_{key}_mean"] = float(value.float().mean())
+        # Detailed event records are opt-in, matching --diagnostics. Existing
+        # lightweight rho summaries above remain available without that flag.
+        observed = getattr(mixer, "last_diagnostics", None)
+        if observed is None:
+            continue
+        measurements = dict(observed, rho=rho)
+        for name, value in measurements.items():
+            if not torch.is_tensor(value) or value.shape != rho.shape:
+                raise ValueError(f"diagnostic {name} must match rho [batch, heads, time]")
+        masks = dict(answer=batch["answer_token_mask"], fact=batch["fact_token_mask"])
+        masks.update(batch.get("event_token_masks", {}))
+        events = {}
+        for name, mask in masks.items():
+            if mask.dtype != torch.bool or mask.shape != (rho.shape[0], rho.shape[2]):
+                raise ValueError(f"event mask {name} must be boolean [batch, time]")
+            token_count = int(mask.sum().item())
+            if not token_count:
+                continue
+            expanded = mask[:, None, :].expand_as(rho)
+            selected_rho = rho.masked_select(expanded)
+            count = selected_rho.numel()
+            below_half = int((selected_rho < .5).sum().item())
+            metrics = {}
+            for metric, value in measurements.items():
+                total = float(value.detach().float().masked_select(expanded).sum().item())
+                metrics[metric] = dict(sum=total, count=count, mean=total / count)
+            events[name] = dict(token_count=token_count, head_token_count=count,
+                rho_below_half_count=below_half,
+                rho_below_half_fraction=below_half / count, metrics=metrics)
+        gate_events[f"layer{layer}"] = events
+    if gate_events:
+        diagnostics["gate_events"] = gate_events
     return diagnostics
 
 

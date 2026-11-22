@@ -151,6 +151,9 @@ alone is not a proof of global contraction of that nonlinear mapping.
   state path retains gradients across chunks. This is an explicit surrogate
   gradient policy, not full differentiation of all forward dependencies.
   The CLI exposes its alternative and the parity receipt records the choice.
+  Vuk's pinned chunked implementation differentiates through its boundary
+  state. Our default is therefore a training-policy difference, not an exact
+  reproduction of that backward path or an established improvement over it.
 - Both backends take raw Q/K at their operator boundary and normalize once.
   Gate probes use the same normalized raw projections. The old adapter fed
   already normalized Q/K to an operator that normalized them again.
@@ -179,9 +182,22 @@ trajectory's prior state**, with the selected guard policy. It is not a
 counterfactual baseline run. Official diagnostics do not fabricate residuals
 that the unchanged kernel does not expose.
 
-These values allow checking whether attenuated edits were actually small,
-including at alias, delayed-alias and answer positions. They are measurements
-for diagnosis; no ground-truth event label enters the predictor.
+With --diagnostics, common.py saves these measurements under gate_events,
+separately by layer and event: initial-fact values, alias-fact values, new-fact
+values and the answer groups. Each metric retains its sum and count. Panel
+means divide pooled sums by pooled head-token counts. Group totals are not
+summed together because old_post overlaps its hot/cold subgroups.
+
+The scorer evaluates an answer at token position t using the logit at t-1,
+whereas its answer-value write occurs at t. Event masks explicitly shift the
+loss-group masks right by one token. Fact masks mark the value in [FACT,k,v].
+These labels are evaluator metadata, never predictor inputs. The current
+alias query immediately follows its fact; there is no delayed-alias task.
+
+This can reveal which token events receive attenuation and whether their
+unskipped active edits are small. It is not a skip-correctness label: a large
+edit can still be harmful, and causal convolution may carry necessary binding
+information beyond the fact-value token. Learning outcomes remain necessary.
 
 ## 6. What validation establishes
 
@@ -189,6 +205,8 @@ for diagnosis; no ground-truth event label enters the predictor.
 boundary and gradient-connectivity checks. The alias and refresh examples
 intentionally demonstrate limitations. Their presence is not a performance
 claim, and the generated tests have not been executed in the Web host.
+`test_diagnostics.py` adds hand-enumerated event-time checks, unequal-count
+aggregation checks and checks that absent diagnostics are not fabricated.
 
 `validate_official.py` checks raw/native policies against the pinned clean
 NVIDIA checkout. It covers one-token and partial chunks and the CUDA

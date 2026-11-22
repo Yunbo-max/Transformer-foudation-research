@@ -49,12 +49,19 @@ class PredSkipTests(unittest.TestCase):
         key = torch.tensor([0., 1.], dtype=torch.double)
         gate = torch.full_like(key, .6)
         score = F.cosine_similarity((state.T @ query)[None], value[None]).item()
-        rho = math.exp(-5 * max(score, 0))
         baseline = edit_step(state, key, value, gate, gate)
-        joint = edit_step(state, key, value, gate * rho, gate * rho)
         self.assertEqual(score, 1.)
-        self.assertGreater(float((joint.T @ key - value).square().sum()),
-                           float((baseline.T @ key - value).square().sum()))
+        self.assertTrue(torch.allclose(baseline.T @ key, .6 * value, atol=1e-12))
+        for gamma in (.25, 5.):
+            with self.subTest(gamma=gamma):
+                rho = math.exp(-gamma * max(score, 0))
+                joint = edit_step(state, key, value, gate * rho, gate * rho)
+                # The chosen default attenuates a required write; it does not
+                # delete it. The limitation also exists at weak suppression.
+                self.assertTrue(torch.allclose(joint.T @ key, .6 * rho * value,
+                                                atol=1e-12))
+                self.assertGreater(float((joint.T @ key - value).square().sum()),
+                                   float((baseline.T @ key - value).square().sum()))
 
     def test_decay_refresh_counterexample_is_a_fixed_point(self):
         alpha, beta, rho = .99, .5, math.exp(-5)

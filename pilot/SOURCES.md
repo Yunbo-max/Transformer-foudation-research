@@ -77,9 +77,23 @@ suppression itself is therefore not newly introduced in this branch. Both
 write-only and joint controls are credited to this source. Our work adapts
 them to the exact channel-wise GDN-2 recurrence and checks the implementation.
 
-The author predictor uses learned strength per layer/head, initialized weakly
-at 0.25, and causal short convolutions. The repair restores per-head strength,
-exposes initialization and convolution settings, and keeps all arms matched.
+In the pinned author's `code e` path, decay, write and erase gates are
+per-token/head scalars: D=alpha*I, w=beta, b=beta*e. This wrapper instead uses
+NVIDIA's key-channel decay, key-channel erase b and value-channel write w,
+with separate projections. That is an integration difference, not a new
+Predicted-Skip gate or an invention of channel-wise GDN-2. The small decoder,
+optimizer and diagnostic protocol also differ, so its losses cannot directly
+establish superiority over the author's reported runs.
+
+The author's chunked state is differentiable through the predictor. This
+wrapper's default gate_memory_detach=True changes only that derivative; its
+alternative remains explicit. No benefit from this difference is assumed.
+
+The author predictor uses learned strength per layer/head and optional causal
+short convolutions. Its strength is --lps * exp(learned), with the learned
+parameter initialized to zero and --lps defaulting to zero (disabled). This
+pilot chooses an initial strength of 0.25; that is not a universal author
+default. The repair exposes strength and convolution settings and matches arms.
 Cosine is an approximate signal: same value under a new key, weak collinear
 reads, stale boundary states, and continual decay are explicit limitations.
 A residual veto would change the algorithm and its chunk dependencies, so it

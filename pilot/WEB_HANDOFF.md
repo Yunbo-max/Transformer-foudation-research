@@ -1,4 +1,20 @@
-# Source repair handoff — 2026-11-21
+# Source repair handoff — updated 2026-11-22
+
+## Follow-up after method review
+
+Parent revision: b4c0b373759f31be4963f56f850dae1d0c3076a6.
+The predictor, recurrence, default gates and all control arms are retained.
+This follow-up adds event-conditioned diagnostic sums/counts and fixes the
+description of the immediate alias probe. No delayed-alias condition is added.
+Generation consumes the same random draws and produces the same token stream;
+new metadata labels existing value-write positions only. The detailed event
+report is opt-in via --diagnostics and never enters model inputs or gating.
+
+METHOD_ZH.md explains the motivation, current-key versus previous-query
+feedback and the inherited versus integrated components. SOURCES.md makes the
+scalar/channel-wise and gate-memory gradient differences explicit.
+New diagnostic regression checks are authored for local execution. All runtime
+and scientific evidence below remains pending for the revised source hashes.
 
 ## Inputs and attribution
 

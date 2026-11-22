@@ -4,9 +4,26 @@
 these exact bytes are pending local execution.**
 
 Start with [LOCAL_AGENT_RUNBOOK.md](LOCAL_AGENT_RUNBOOK.md).
+For the method's purpose and the GDN-2 comparison in Chinese, read
+[METHOD_ZH.md](METHOD_ZH.md).
 See [MATH.md](MATH.md) for the equations, guard semantics and counterexamples,
 [SOURCES.md](SOURCES.md) for pinned author implementations, and
 [WEB_HANDOFF.md](WEB_HANDOFF.md) for changed settings and pending checks.
+
+## What the added feedback is for
+
+Predicted-Skip tests whether some retrieved answers are written back into
+memory unnecessarily when they re-enter the causal token stream. The added
+signal compares the current value with a previous-query read from the
+chunk-start state, then softly reduces the active edit.
+
+GDN-2 already has a state-dependent erase term and learned input gates. Its
+current-key update and this previous-query signal answer different questions.
+The latter may identify answer writeback even when the current write key
+differs from the retrieval query. The same distinction can also suppress a
+useful new association, so retaining new-key learning is part of the test.
+GDN-2 is a base on which to evaluate this hypothesis; it does not require
+Predicted-Skip by construction.
 
 ## Attribution and scope
 
@@ -44,8 +61,9 @@ gate is one. No labels or phase masks enter the predictor.
 
 ## Numeric and architecture repair
 
-- Per-head learnable gamma, initialized at 0.25, follows the author code's
-  weaker initial suppression. --gamma records alternative initializations.
+- Per-head learnable gamma follows the author's parameterization. This
+  pilot selects 0.25 as its initial strength; the author's --lps is configurable
+  and defaults to disabled. --gamma records alternative initializations.
 - Causal Q/K/V depthwise short convolution size 4 is applied to all arms.
   --conv-size 0 restores the former no-convolution ablation.
 - Q/K normalization is defined consistently and official inputs are not
@@ -65,7 +83,9 @@ gate is one. No labels or phase masks enter the predictor.
   predictor's boundary-state input. The main recurrent gradient is retained
   in either case.
 - --diagnostics records actual-trajectory active-edit quantities during
-  reference evaluation only. It does not alter the predictor.
+  reference evaluation only. Event summaries distinguish initial facts,
+  alias facts, genuinely new facts and each answer group. They record sums
+  and token/head counts before computing means, and do not alter the predictor.
 
 These settings change the training configuration and gamma parameter shape.
 Old scalar-gamma checkpoints are not silently reinterpreted as new checkpoints.
@@ -104,6 +124,27 @@ This remains a small matched-projection decoder, not NVIDIA's full 1.3B model.
 Every arm uses the same external chunk dispatch. Boundary-state reads and
 repeated kernel launches have a cost; soft skip does not itself skip compute.
 No GPU parity or speed result is claimed for the generated repair.
+
+## Inspecting what gets suppressed
+
+With --backend reference --diagnostics, each evaluation panel's JSON includes
+gate_events.layer0 (and one entry for each additional layer). The event names
+include initial_fact, alias_fact, new_fact, answer_alias and answer_new_post.
+Each entry contains token_count, head_token_count, rho_below_half_count and
+metrics with sum, count and mean. Available measurements include rho, cosine,
+read/value norms, unskipped/applied edit norms and guard adjustment.
+
+The fact events mark the value token in [FACT, key, value]. Answer events
+mark the answer token's own write, one position after the logit used to score
+that answer. Loss/group masks are shifted explicitly for this purpose.
+The labels are evaluator metadata and are never passed to the mixer.
+
+Zero-count events are absent. Old-post and its hot/cold subgroups overlap;
+do not add their counts together. The panel combines sums and counts, rather
+than averaging unequal batch means. These are event-conditioned observations,
+not labels proving that a particular write is necessary or redundant. Short
+convolution can carry an association into subsequent token representations.
+The current alias is queried immediately; no delayed-alias task is implemented.
 
 ## Evaluation and sizing
 
