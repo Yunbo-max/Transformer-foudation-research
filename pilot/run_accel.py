@@ -4,6 +4,8 @@
 S0/C0 dense no cache; S1/C0 causal block-sparse no cache;
 S0/C1 dense+utility cache; S1/C1 block-sparse+utility cache.
 This is a frozen synthetic edge-reader proxy; NOT trained coauthor LM speed.
+A third S2=identity-hash routing arm is included because block-mean routing
+may miss singleton identity keys (prior work in hashing, not a novelty claim).
 """
 from __future__ import annotations
 import argparse,json,math,random,time
@@ -30,7 +32,7 @@ def sparse_microbench(device,seed,lengths,block_size=16,blocks=2,dim=32):
         k=base
         v=F.normalize(torch.randn(1,n,dim,device=device),dim=-1)
         dense,_=pointer_lookup(q,k,v,mode="dense")
-        for mode in ("dense","dense_topk","block"):
+        for mode in ("dense","dense_topk","block","hash"):
             sync(device)
             if device.type=="cuda":
                 torch.cuda.reset_peak_memory_stats(device)
@@ -93,7 +95,7 @@ def crossed_pilot(device,seed,num_nodes,num_queries,block_size,blocks,
         if typ=="update":truth.update_edge(x,y)
         else:answers.append(truth.query(x,y))
     rows=[]
-    for sparse in ("dense","block"):
+    for sparse in ("dense","block","hash"):
         for policy in ("none","utility"):
             reader=NeuralEdgeReader(succ,device,sparse,seed=seed+42,
                  dim=32,block_size=block_size,blocks=blocks)
