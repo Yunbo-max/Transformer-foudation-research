@@ -1,6 +1,7 @@
-> **CURRENT ACTIVE EXPERIMENT (2026-11-22): 340M / 20B tokens / 4 complete trainings; one seed 42 per method, REAL full pretraining, then formal large-sample evaluation.** All larger model-scale expansions are **DEFERRED** until these results are reviewed.
-> Formal protocol: [FULL_PAPER_EXPERIMENTS.md](FULL_PAPER_EXPERIMENTS.md). Machine-readable job design: [SMALL_SCALE_STUDY.json](SMALL_SCALE_STUDY.json).
-> **Implementation status:** design only. The legacy 3-hour scripts below are NOT the full pretraining pipeline and do NOT run the locked 5B/20B-token study. Real training infrastructure, native benchmarks and (where needed) GPU kernels remain to be implemented.
+> **LOCKED MAIN FORMAL STUDY:** 340M / 20B tokens per arm / **3 strong baselines + 1 proposed method = 4 full runs**, one training seed 42.
+> **SHORT ABLATIONS:** only 1 additional short job at 2B tokens, compare with matched main checkpoint at 2B. Cache policies add ZERO model pretraining.
+> Experiment docs: [FULL_PAPER_EXPERIMENTS.md](FULL_PAPER_EXPERIMENTS.md) · [SMALL_SCALE_STUDY.json](SMALL_SCALE_STUDY.json).
+> **Not executable end-to-end yet:** legacy 3h runner below does NOT train 340M/20B and symbolic cache is not real neural GPU cache.
 
 # Legacy Project 11 reference acceleration extensions (2026-11-22)
 
