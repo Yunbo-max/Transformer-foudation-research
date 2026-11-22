@@ -82,7 +82,9 @@ def pointer_lookup(q:torch.Tensor,k:torch.Tensor,v:torch.Tensor,
     ends=torch.minimum((torch.arange(groups,device=q.device)+1)*bs-1,
                         torch.tensor(nk-1,device=q.device))
     outputs=[]
-    scored=retained=routed=peak=0
+    routed=peak=0
+    # Hold counter tensors on GPU until after the final chunk.
+    actual_counts=[]
     for first in range(0,nq,chunk):
         stop=min(nq,first+chunk);width=stop-first
         pos=positions[:,first:stop]
@@ -110,11 +112,12 @@ def pointer_lookup(q:torch.Tensor,k:torch.Tensor,v:torch.Tensor,
             scores=scores-penalty*(h.unsqueeze(-2)*hk).sum(-1)
         scores=scores.masked_fill(~valid,float("-inf"))
         outputs.append((scores.softmax(-1).unsqueeze(-1)*vs).sum(-2))
-        scored+=int(valid.sum());retained+=int(valid.sum())
+        actual_counts.append(valid.sum())
         routed+=b*width*groups
         peak=max(peak,scores.numel()+routing.numel())
+    scored=int(torch.stack(actual_counts).sum().item())
     return torch.cat(outputs,dim=1),dict(
-        mode=mode,scoring_pairs=scored,retained_pairs=retained,
+        mode=mode,scoring_pairs=scored,retained_pairs=scored,
         router_pairs=routed,max_logit_cells=peak,
         group_count=groups,selected_blocks=blocks,
         note="Only Pointer operator is sparse; no fused CUDA kernel or dense-LM speedup claimed")
