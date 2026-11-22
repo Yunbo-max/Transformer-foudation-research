@@ -1,34 +1,41 @@
-# Dynamic Shared LM Output Vectors — ACTIVE SMALL-SCALE FULL-PRETRAINING STUDY (2026-11-22)
+# Dynamic Shared LM Output Vectors: LOCKED LEAN FULL-TRAINING STUDY (2026-11-22)
 
-**SCOPE LOCK:** 125M REAL decoder, 5B pretraining FineWeb-Edu tokens, context 2048, full GPT-2 50,257-vocab (no artificial UNK), **ONE full training per arm / seed 42**. No 350M/20B or 1.3B stage for now. Old 32-width/400-step synthetic study is NOT paper-grade.
+**ACTIVE:** 125M parameters, 5B full pretraining tokens/arm, context 2048, ONE training seed=42, precisely THREE competitive or mechanistically essential baselines plus ONE proposed method. Main runs are complete formal training, NOT a 3h pilot. All 1.3B and second-scale expansion deferred.
 
-## Closest real research
-Original additive shared-output dynamic weight KMeans (Vuk Rosic coauthor) is PRIOR WORK; our contribution hypothesis is historical positive-target gradient direction and direction+magnitude grouping. Syntactic Smoothing (EMNLP 2024) is a required, source-faithful competitor. Preserve function-equivalent output rows at every regroup, audit optimizer-state/reset confounding and full-group assignment costs.
+## Main full training matrix — EXACTLY 4 trained models
+1. tuned_output_adam_epsilon — **BASELINE**: strong cheap optimizer-level comparator
+2. original_dynamic_weight_kmeans — **BASELINE**: Vuk Rosic existing function-preserving additive shared LM output head
+3. syntactic_smoothing — **BASELINE**: EMNLP 2024 supervised syntax-neighbour signal sharing comparator
+4. positive_target_gradient_direction_magnitude — **OURS**: historical positive-target gradient-based dynamic groups with direction plus calibrated magnitude
 
-## EXACT primary FULL-training matrix — 8 jobs
-All matched 125M / 5B tokens / 2048 context / GPT-2 vocab / identical token stream / one seed 42:
-1. Tuned AdamW epsilon head-only (unshared)
-2. Fixed Random shared output groups
-3. Fixed Frequency shared output groups
-4. Dynamic learned Weight K-Means (original coauthor)
-5. Full-gradient EMA K-Means
-6. Target-conditioned Positive-Gradient Direction grouping
-7. Positive-Gradient Direction + Log-Magnitude grouping
-8. Syntactic/Morphological Smoothing source-faithful competitor (disclose any extra POS supervision)
-Same decoder stack, tied/untied design within comparators, optimizer schedule, matched token budget, and fair validation-only tuning. Stop only after full 5B tokens, not an early 400-step screen.
+All arms are train-from-scratch on an identical frozen FineWeb-Edu with full GPT-2 50,257-token vocabulary (NO artificial UNK) training stream with matched architecture/parameter budget and fully documented FLOPs. Tune on validation only with equivalent search budget; all four main models consume the FULL 5B tokens. Report source-faithful official protocols and disclose non-identical architecture components. No 4th or 5th baseline implied.
 
-## Complete evaluation for EACH checkpoint
-- **Primary:** NLL on >=50M independent held-out FineWeb-Edu tokens; additionally >=2 out-of-domain corpora. Full-tokenizer NLL, frequency-conditional token loss and type-balanced token analysis, in-vocab rare cohorts and frequent-token regressions. Do NOT invent 1–9-occurrence cohorts if a 5B-token training corpus gives no suitable tokens.
-- **Rare generalization:** preregister a separate held-out rare-token context suite with a TARGET of >=2,000 distinct eligible token types and >=10 held-out contexts per type; record actual coverage and sampling source. Report population weighted and balanced-type scores separately.
-- **Linguistic/general:** full BLiMP (67 subtasks x official 1,000 pairs, no handcrafted replacement), HellaSwag, ARC and LAMBADA (supplementary). Full logits and PPL after folding the shared head.
-- **Mechanism & efficiency:** group-size/semantic coherence, historical gradient direction vs full gradient vs learned weights; optimizer-reset control and extra parameter accounting. Match inference tokens/sec BEFORE vs AFTER folding shared vectors, training throughput and peak GPU VRAM. Additional training to sweep K, regroup interval, tied/untied, batch size and 100K vocabulary are DEFERRED from this stage rather than silently counted in 8 trainings.
+## Minimal short-budget training ablations — EXACTLY 2 additional jobs
+- gradient_direction_only: 1B TRAIN tokens, compare with `positive_target_gradient_direction_magnitude` checkpoint at the same consumed token count; does direction add the gain without gradient magnitude?.
+- optimizer_reset_control: 1B TRAIN tokens, compare with `positive_target_gradient_direction_magnitude` checkpoint at the same consumed token count; rule out Adam-moment reset / regroup frequency artifact.
 
-## Non-negotiable execution and evaluation rules
-- This is **complete small-scale pretraining**, not 50/400-step pilot: actually consume the declared token budget and save loss curves/checkpoints. One training seed (42) for each arm. Pair dataset shards, data order, tokenizer, initialization of comparable tensor shapes, token budget, architecture width/parameter count, optimizer/schedule and compute reporting. Never fabricate between-training-seed variance.
-- Reserve validation for equal-budget hyperparameter selection BEFORE fixed final tests; define and freeze primary metric, held-out corpora, prompts and success criteria. Report all baselines, even worse ones. Held-out item bootstrap or document-cluster bootstrap concerns TEST sample uncertainty only; it does not establish training-seed robustness.
-- Each official benchmark must use the official prompt/evaluation code and labeled native sample counts; custom supplements are reported in separate columns. Disjoint tokenizer train/test corpora; for synthetic graph tasks disjoint instances, held-out key inventories and graph structures. Avoid contamination.
-- Report full-training wall time, effective tokens/sec, FLOPs inclusive of extra operators, model parameters, peak GPU **allocated/reserved** VRAM, host RAM, checkpoint footprints, prefill/decode median/P95 and test accuracy/NLL. All data pipelines must be sharded and reproducible.
-- All rows below are **PLANNED**. Existing pilot scripts **DO NOT** implement the 125M/340M 5B/20B full-scale training pipelines. No complete GPU result is claimed. This stage has one model size only; larger scales and any extra training-required sensitivities are **DEFERRED**, not silently included in the time total.
+At the designated 1B/2B point, SAVE checkpoints of applicable FULL main arms automatically. Additional ablation training follows the SAME training schedule up to that exact token count; no replacement with shorter cosine. Matched early-step results ONLY: **do not compare an ablation trained for 2B with a 20B final main model and claim the same budget**. The short-budget table explicitly states its shorter-data limitation.
 
-## H100 80GB budget (estimated, not benchmarked)
-125M/5B ~5.2 theoretical H100 GPUh/run at an assumed 200TFLOP/s, eight full jobs = **~42 ideal H100 GPUh** core. A small model underutilizes H100 and dynamic KMeans/grouping adds overhead: reserve **~125–630 H100 GPUh** for full training + large evaluation; this is not measured. 24GB RTX 4090 can likely host training with gradient accumulation; recommend 48GB for comfort, RAM >=64GB and >=500GB scratch. No 350M training is counted.
+## Evaluation (no reduction in held-out sample rigor)
+- PRIMARY: independent FineWeb-Edu held-out next-token NLL >=50M tokens excluding no real GPT-2 vocabulary rows; preserve all tokens and report frequency-bin conditional NLL and common-token regression
+- At least two held-out out-of-domain text corpora and a genuine low-frequency-token stratified challenge where actual eligible token counts and context coverage are disclosed
+- Official BLiMP 67 tasks (typically 1,000 pairs each), plus LAMBADA/ARC and relevant frequency bias/anisotropy
+- Monitor grouping costs, assigned frequencies/cluster members, optimizer state effects, folded-out inference throughput, train throughput/VRAM
+
+## Closest-work and interpretation constraints
+- Original dynamic weight kmeans/additive output row is Vuk's work: our hypothesis is gradient-based grouping, not the additive sharing itself.
+- Syntactic Smoothing EMNLP 2024: https://aclanthology.org/2024.emnlp-main.344/ ; if supervision/architecture cannot be matched, label as distinct recipe and do not assert exact parameter/compute fairness.
+- Extra vocab size/tied head/batch/K sweeps deferred; no 350M large-scale run now.
+
+## Fixed scientific controls
+- One full training seed 42 per MAIN arm. Within-project arms use matched tokenizer, source sharded train manifest, data order, training token budget, model/optimizer schedule and comparable parameter + training FLOP budget. Run exactly ALL declared main arms; do not omit weak ones.
+- For the limited short training ablations, record and preserve MAIN model checkpoints **after the same 1B/2B number of consumed tokens**. The short ablation uses the identical full-run LR schedule through that token count (not a separately accelerated cosine schedule). Compare with the matched-token MAIN checkpoints, NEVER with MAIN final 5B/20B checkpoints. Short-budget ablations only show early-training mechanism sensitivity; they do not establish the full-budget mechanism in isolation.
+- Validate methods/official kernel and numerical invariants before burning pretraining compute. This is engineering correctness verification, NOT a reduced-data scientific pilot. No numerical training result is currently claimed.
+- For full checkpoints, run official native benchmarks with unmodified evaluation metrics and task-specific sample counts. Use the same held-out prompts/examples across arms; preregister primary metrics. Report test-set paired/bootstrap confidence intervals where appropriate, and explicitly state ONE training seed cannot establish training-seed robustness. Avoid data/test leakage.
+- Measure effective training token throughput, full-model and operator kernel cost, wall time, actual GPU allocated/reserved peak, host RAM, and test accuracy/NLL. Failed/OOM cells stay in results; efficiency claims must be from real GPU, not proxy FLOP counts.
+- IMPORTANT: This file and SMALL_SCALE_STUDY.json are experiment-design artifacts. The legacy 3h scripts do NOT train 125M/340M on 5B/20B tokens, and the needed native training, kernels, datasets and evaluation integration are not yet implemented. No ready-to-run full training is asserted.
+
+## Scope and resources (engineering estimate only)
+- FULL runs: 4 × 5B tokens = 20B consumed tokens. Short ablations: 1B + 1B = 2B. TOTAL 22B token-read volume (may repeat the same data shards across different methods).
+- Theoretical core training H100 GPU hours if (only IF) 6PT FLOPs and sustained 200 TFLOP/s: 22.9h. This IS NOT measured training time, excludes evaluation and any extra routing/matrix compute, and does NOT cap runtime for currently unfused operators.
+- Target VRAM 80GB for 125M methods with custom kernels (output head may use 24–48GB), host RAM 64–128GB, streaming data. Main code requires work before this protocol can execute.
