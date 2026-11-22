@@ -93,7 +93,7 @@ gate is one. No labels or phase masks enter the predictor.
 These settings change the training configuration and gamma parameter shape.
 Old scalar-gamma checkpoints are not silently reinterpreted as new checkpoints.
 
-## Local reference commands
+## Legacy local reference commands (not full-paper training)
 
     python3 -m unittest discover -s pilot -p 'test_*.py'
     python3 pilot/oracle_diagnostic.py
