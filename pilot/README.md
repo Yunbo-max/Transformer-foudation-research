@@ -1,5 +1,6 @@
-> **Paper-level experiments (one full training run per configuration, comparable published training budgets):** see [FULL_PAPER_EXPERIMENTS.md](FULL_PAPER_EXPERIMENTS.md).
-> This is a complete research protocol, **not yet a runnable paper-scale training pipeline**. Existing short-run scripts do not implement it.
+> **CURRENT ACTIVE EXPERIMENT (2026-11-22): 340M / 20B tokens / 5 complete trainings; one seed 42 per method, REAL full pretraining, then formal large-sample evaluation.** All larger model-scale expansions are **DEFERRED** until these results are reviewed.
+> Formal protocol: [FULL_PAPER_EXPERIMENTS.md](FULL_PAPER_EXPERIMENTS.md). Machine-readable job design: [SMALL_SCALE_STUDY.json](SMALL_SCALE_STUDY.json).
+> **Implementation status:** design only. The legacy 3-hour scripts below are NOT the full pretraining pipeline and do NOT run the locked 5B/20B-token study. Real training infrastructure, native benchmarks and (where needed) GPU kernels remain to be implemented.
 
 # Predicted-Skip on channel-wise GDN-2
 
