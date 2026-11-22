@@ -87,7 +87,7 @@ standard interference, and more stored pairs. Evaluation defaults to 16
 batches x 16 independent sequences per panel. Paired arms share exact examples.
 Per-sequence outcomes, counts, seeds, source hashes, timing and memory are saved.
 
-Reports require at least two distinct complete training seeds, established
+The legacy diagnostic screener (not the current full-paper protocol) requires two complete seeds, established
 old recall above the contextual-value baseline, complete matched evaluation, old-recall improvement over
 the simple baseline AND individual components, and no clear loss of alias or
 new-fact learning. Uncertainty uses paired sequence resampling within each
