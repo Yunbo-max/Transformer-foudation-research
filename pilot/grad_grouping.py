@@ -47,6 +47,22 @@ def accumulate_positive_target_gradients(
     target_count.index_add_(0,y,torch.ones_like(y,dtype=target_count.dtype))
 
 
+
+@torch.no_grad()
+def _spherical_kmeans(unit: torch.Tensor, clusters: int, seed: int=1, iters: int=10) -> torch.Tensor:
+    """Deterministic cosine k-means; always NORMALIZES cluster centroids."""
+    K=int(clusters)
+    indices=torch.randperm(len(unit),generator=torch.Generator().manual_seed(seed))[:K].to(unit.device)
+    centers=unit[indices].clone()
+    for _ in range(iters):
+        assignment=(unit@centers.T).argmax(dim=1)
+        count=torch.bincount(assignment,minlength=K)
+        totals=unit.new_zeros((K,unit.shape[-1])).index_add_(0,assignment,unit)
+        candidates=F.normalize(totals,dim=1,eps=1e-9)
+        centers=torch.where(count[:,None]>0,candidates,centers)
+    return (unit@centers.T).argmax(dim=1)
+
+
 @torch.no_grad()
 def assign_by_positive_gradient(
     effective_weights: torch.Tensor,
@@ -62,8 +78,8 @@ def assign_by_positive_gradient(
 
     1. The average gradient per correct-target OCCURRENCE avoids frequency
        scaling and step-by-step EMA decay of extremely rare tokens.
-    2. K-means on unit directions is equivalent to cosine assignment when
-       centroids are normalized; raw k-means also reflects centroid norms.
+    2. Pure direction uses spherical k-means with NORMALIZED centroids.
+       Direction + magnitude uses Euclidean k-means on augmented features.
     3. Optionally append standardized log mean-gradient magnitude. The
        magnitude weight is a prespecified hyperparameter (0 for direction).
     4. Tokens with fewer than min_count target hits fall back to output-row
@@ -104,7 +120,10 @@ def assign_by_positive_gradient(
     else:
         features=unit
 
-    assigned_reliable=kmeans_fn(features,K).long()
+    assigned_reliable=(
+        kmeans_fn(features,K) if magnitude_weight>0
+        else _spherical_kmeans(unit,K)
+    ).long()
     group_counts=torch.bincount(assigned_reliable,minlength=K)
     weight_centroids=R.new_zeros(K,R.shape[1]).index_add_(0,assigned_reliable,eligible_rows)
     weight_centroids/=group_counts.clamp_min(1).unsqueeze(1)
