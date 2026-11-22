@@ -1,3 +1,5 @@
+# Active Wuke Funnel 4: [Scientific stage gate](GATE4.md)
+
 # Pilot C — Muon Confidence-Based Hold (<= 3 hours)
 
 Repository: https://github.com/Yunbo-max/Transformer-foudation-research
@@ -44,7 +46,8 @@ Primary: held-out NTP NLL and loss spikes; secondary: LR multiplier trace,
 time to freeze and divergence. Claim NO GO unless the confidence controller
 improves the fixed hold by >=0.005 nats and is within 0.006 of best-of-three
 fixed on both seeds in the hard configuration. A sweep is not a perfect oracle.
-All incomplete cells = INCONCLUSIVE.
+All incomplete cells = INCONCLUSIVE. Proxy-only results are always INCONCLUSIVE_PROXY_ONLY;
+real-data confirmation must additionally beat the post-hold noise-aware baseline.
 
 Output: .pilot_workspace_muon/reports/report.json and decision.json plus per-case logs.
 Hard child wall-clock cap 10,500 s (<3h) excluding setup/clone.
